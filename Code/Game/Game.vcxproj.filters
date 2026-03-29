@@ -1,0 +1,303 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Framework">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Game">
+      <UniqueIdentifier>{985f2d60-e94a-48f4-b179-fb94da63481c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data">
+      <UniqueIdentifier>{d0b2bd5d-a704-434c-979c-776ef9200592}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Shaders">
+      <UniqueIdentifier>{807dab15-579c-4fd0-97d1-a5966489a6fc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Shaders\RTShaders">
+      <UniqueIdentifier>{32e52863-313c-4dd9-8dc7-68aee725d369}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Shaders\Raster">
+      <UniqueIdentifier>{412c6aed-8722-4856-955a-f8b738aa2ede}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Shaders\RTShaders\Utils">
+      <UniqueIdentifier>{bcb47634-590b-4d5f-824a-3893d2f12a8c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures">
+      <UniqueIdentifier>{61a5a209-d51a-4987-b5f9-f4dd2f14501c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Scenes">
+      <UniqueIdentifier>{f095d744-6df9-4499-ae18-9c9205b64773}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\PBRTextures">
+      <UniqueIdentifier>{554724a5-df0f-46d7-b62f-1b69fd2a852a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\PBRTextures\Metal">
+      <UniqueIdentifier>{7d527932-f542-46ad-b88d-7c8d701261b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\Misc">
+      <UniqueIdentifier>{1a47b9cf-0864-4162-b629-f5cf5344fd3a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\PBRTextures\OldPlastic">
+      <UniqueIdentifier>{72c718f2-df76-4641-a6f6-ddde8678515b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\PBRTextures\Kydex">
+      <UniqueIdentifier>{242ebc5e-6712-479d-87f0-1630e534cdad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\PBRTextures\Rubber">
+      <UniqueIdentifier>{12e7b651-c2ca-4761-9f74-d488f8c6052d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\PBRTextures\Concrete">
+      <UniqueIdentifier>{47a14eb4-a36f-4c95-b832-2165ed0301f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\PBRTextures\DullMetal">
+      <UniqueIdentifier>{557b59a8-1214-4b7c-93ef-ace75bb68a4f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Data\Textures\PBRTextures\RedSyntheticMaterial">
+      <UniqueIdentifier>{adaf9548-351e-474d-bc6b-0303accfbfe4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="App.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="Main_Windows.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="GameCommon.cpp">
+      <Filter>Framework</Filter>
+    </ClCompile>
+    <ClCompile Include="Game.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="TestScene.cpp">
+      <Filter>Game\Scenes</Filter>
+    </ClCompile>
+    <ClCompile Include="PBRTests.cpp">
+      <Filter>Game\Scenes</Filter>
+    </ClCompile>
+    <ClCompile Include="Sponza.cpp">
+      <Filter>Game\Scenes</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="App.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="GameCommon.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="EngineBuildPreferences.hpp">
+      <Filter>Framework</Filter>
+    </ClInclude>
+    <ClInclude Include="Game.hpp">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene.hpp">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="TestScene.hpp">
+      <Filter>Game\Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="PBRTests.hpp">
+      <Filter>Game\Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="Sponza.hpp">
+      <Filter>Game\Scenes</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\..\Run\Data\Shaders\DefaultRT.hlsl">
+      <Filter>Data\Shaders\RTShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Run\Data\Shaders\Default.hlsl">
+      <Filter>Data\Shaders\Raster</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Run\Data\Shaders\Diffuse.hlsl">
+      <Filter>Data\Shaders\Raster</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Run\Data\Shaders\Composite.hlsl">
+      <Filter>Data\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Run\Data\Shaders\GBuffers.hlsl">
+      <Filter>Data\Shaders\RTShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Run\Data\Shaders\TemporalReuse.hlsl">
+      <Filter>Data\Shaders\RTShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Run\Data\Shaders\SpatialReuse.hlsl">
+      <Filter>Data\Shaders\RTShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="..\..\Run\Data\Shaders\Denoiser.hlsl">
+      <Filter>Data\Shaders\RTShaders</Filter>
+    </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\Run\Data\Images\Metal_a.png">
+      <Filter>Data\Textures\PBRTextures\Metal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Metal_disp.png">
+      <Filter>Data\Textures\PBRTextures\Metal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Metal_m.png">
+      <Filter>Data\Textures\PBRTextures\Metal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Metal_n.png">
+      <Filter>Data\Textures\PBRTextures\Metal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Metal_r.png">
+      <Filter>Data\Textures\PBRTextures\Metal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Cobblestone.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Cobblestone_a.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Cobblestone_n.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\FunkyBricks.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\FunkyBricks_a.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\FunkyBricks_n.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Hex_a.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Hex_n.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\TestUV.png">
+      <Filter>Data\Textures\Misc</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Kydex_a.png">
+      <Filter>Data\Textures\PBRTextures\Kydex</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Kydex_ao.png">
+      <Filter>Data\Textures\PBRTextures\Kydex</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Kydex_h.png">
+      <Filter>Data\Textures\PBRTextures\Kydex</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Kydex_m.png">
+      <Filter>Data\Textures\PBRTextures\Kydex</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Kydex_n.png">
+      <Filter>Data\Textures\PBRTextures\Kydex</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Kydex_r.png">
+      <Filter>Data\Textures\PBRTextures\Kydex</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Rubber_a.png">
+      <Filter>Data\Textures\PBRTextures\Rubber</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Rubber_m.png">
+      <Filter>Data\Textures\PBRTextures\Rubber</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Rubber_n.png">
+      <Filter>Data\Textures\PBRTextures\Rubber</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\Rubber_r.png">
+      <Filter>Data\Textures\PBRTextures\Rubber</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\OldPlastic_a.png">
+      <Filter>Data\Textures\PBRTextures\OldPlastic</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\OldPlastic_ao.png">
+      <Filter>Data\Textures\PBRTextures\OldPlastic</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\OldPlastic_h.png">
+      <Filter>Data\Textures\PBRTextures\OldPlastic</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\OldPlastic_m.png">
+      <Filter>Data\Textures\PBRTextures\OldPlastic</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\OldPlastic_n.png">
+      <Filter>Data\Textures\PBRTextures\OldPlastic</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\OldPlastic_r.png">
+      <Filter>Data\Textures\PBRTextures\OldPlastic</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\DullMetal_a.png">
+      <Filter>Data\Textures\PBRTextures\DullMetal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\DullMetal_ao.png">
+      <Filter>Data\Textures\PBRTextures\DullMetal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\DullMetal_m.png">
+      <Filter>Data\Textures\PBRTextures\DullMetal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\DullMetal_n.png">
+      <Filter>Data\Textures\PBRTextures\DullMetal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\DullMetal_r.png">
+      <Filter>Data\Textures\PBRTextures\DullMetal</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\CleanConcrete_a.png">
+      <Filter>Data\Textures\PBRTextures\Concrete</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\CleanConcrete_ao.png">
+      <Filter>Data\Textures\PBRTextures\Concrete</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\CleanConcrete_h.png">
+      <Filter>Data\Textures\PBRTextures\Concrete</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\CleanConcrete_m.png">
+      <Filter>Data\Textures\PBRTextures\Concrete</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\CleanConcrete_n.png">
+      <Filter>Data\Textures\PBRTextures\Concrete</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\CleanConcrete_r.png">
+      <Filter>Data\Textures\PBRTextures\Concrete</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\RedMaterial_a.png">
+      <Filter>Data\Textures\PBRTextures\RedSyntheticMaterial</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\RedMaterial_m.png">
+      <Filter>Data\Textures\PBRTextures\RedSyntheticMaterial</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\RedMaterial_n.png">
+      <Filter>Data\Textures\PBRTextures\RedSyntheticMaterial</Filter>
+    </Image>
+    <Image Include="..\..\Run\Data\Images\RedMaterial_r.png">
+      <Filter>Data\Textures\PBRTextures\RedSyntheticMaterial</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Xml Include="..\..\Run\Data\GameConfig.xml">
+      <Filter>Data</Filter>
+    </Xml>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\Run\Data\Shaders\Includes\BRDF.hlsli">
+      <Filter>Data\Shaders\RTShaders\Utils</Filter>
+    </None>
+    <None Include="..\..\Run\Data\Shaders\Includes\RNG.hlsli">
+      <Filter>Data\Shaders\RTShaders\Utils</Filter>
+    </None>
+    <None Include="..\..\Run\Data\Shaders\Includes\RTDataStructures.hlsli">
+      <Filter>Data\Shaders\RTShaders\Utils</Filter>
+    </None>
+    <None Include="..\..\Run\Data\Shaders\Includes\RTUtils.hlsli">
+      <Filter>Data\Shaders\RTShaders\Utils</Filter>
+    </None>
+    <None Include="..\..\Run\Data\Shaders\Includes\Sampling.hlsli">
+      <Filter>Data\Shaders\RTShaders\Utils</Filter>
+    </None>
+    <None Include="..\..\Run\Data\Shaders\Includes\Reservoir.hlsli">
+      <Filter>Data\Shaders\RTShaders\Utils</Filter>
+    </None>
+    <None Include="..\..\Run\Data\Shaders\Includes\Resources.hlsli">
+      <Filter>Data\Shaders\RTShaders\Utils</Filter>
+    </None>
+  </ItemGroup>
+</Project>

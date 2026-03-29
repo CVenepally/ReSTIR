@@ -1,0 +1,12 @@
+<GameConfig	
+	windowAspect ="2.0"
+	playerMoveSpeed ="4.0"
+    windowTitle ="ReSTIR"
+    isFullscreen ="true"
+	enableJitter="true"
+	enableFrameAccumulation="true"
+	enableRaytrace="true"
+	minBounces="3"
+	maxBounces="12"
+	enableIndirect="true"
+/>
