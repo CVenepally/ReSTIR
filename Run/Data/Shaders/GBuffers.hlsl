@@ -90,7 +90,6 @@ float2 ConvertWorldPositionToScreenPosition(float3 worldPosition, float4x4 world
     float4 currentRenderSpacePosition = mul(g_cameraConsts.cb_cameraToRender, currentCameraSpacePosition);
     float4 currentClipSpacePosition = mul(g_cameraConsts.cb_renderToClip, currentRenderSpacePosition);
     currentClipSpacePosition.xyz /= currentClipSpacePosition.w;
-//    currentClipSpacePosition.y *= -1;
     
     float2 currentScreenSpacePosition = (currentClipSpacePosition.xy + 1.f) * 0.5f;
     
@@ -106,7 +105,6 @@ float4 CalculateMotionVector(float3 worldPosition)
     float4 currentRenderSpacePosition   = mul(g_cameraConsts.cb_cameraToRender, currentCameraSpacePosition);
     float4 currentClipSpacePosition     = mul(g_cameraConsts.cb_renderToClip, currentRenderSpacePosition);
     currentClipSpacePosition.xyz /= currentClipSpacePosition.w;
-//    currentClipSpacePosition.y *= -1;
     
     float2 currentScreenSpacePosition = (currentClipSpacePosition.xy + 1.f) * 0.5f;
 
@@ -114,7 +112,6 @@ float4 CalculateMotionVector(float3 worldPosition)
     float4 prevRenderSpacePosition = mul(g_cameraConsts.cb_cameraToRender, prevCameraSpacePosition);
     float4 prevClipSpacePosition = mul(g_cameraConsts.cb_renderToClip, prevRenderSpacePosition);
     prevClipSpacePosition.xyz /= prevClipSpacePosition.w;
- //   prevClipSpacePosition.y *= -1;
     
     float2 prevScreenSpacePosition = (prevClipSpacePosition.xy + 1.f) * 0.5f;
     
@@ -132,19 +129,27 @@ Reservoir CreatePixelReservoirCurrentFrame()
     uint randSeed = GetSeedForRNG(DispatchRaysIndex().x, DispatchRaysIndex().y);
     randSeed = GetSeedForRNG(randSeed, g_appSettings.cb_frameCount);
     
-    float pdf = 1.f / g_lightConsts.cb_numLights;
+    float pdf = 1.f / g_sceneConsts.cb_numLights;
     float p_hat = 0.f;
     int M = g_appSettings.cb_maxSamples;
     
+    uint2 pixel = DispatchRaysIndex().xy;
+    float3 hitPosition = g_positionGBuffer[pixel].xyz;
+    float3 shadingNormal = DecodeRGBtoXYZ(g_normalsGBuffer[pixel].xyz);
+    float3 albedo = g_albedoGBuffer[pixel].xyz;
+    
     for (uint i = 0; i < M; i++)
     {
-        uint lightIndex = min((uint) (RollRandomFloatZeroToOneAndUpdateSeed(randSeed) * g_lightConsts.cb_numLights), g_lightConsts.cb_numLights - 1);
+        uint lightIndex = min((uint) (RollRandomFloatZeroToOneAndUpdateSeed(randSeed) * g_sceneConsts.cb_numLights), g_sceneConsts.cb_numLights - 1);
         
-        float3 hitPosition = g_positionGBuffer[DispatchRaysIndex().xy].xyz;
+        StructuredBuffer<Light> lightBuffer = g_sceneLightsBuffer[g_sceneConsts.cb_lightBufferIndex];
+        Light light = lightBuffer[lightIndex];
+        LightEval eval = EvalLightAtPoint(light, hitPosition);
         
-        LightEval eval = EvalLightAtPoint(g_lightConsts.cb_allLights[lightIndex], hitPosition);
-                
-        p_hat = Luminance(eval.m_incomingRadiance);
+        float cosTheta = saturate(dot(shadingNormal, eval.m_pointToLightDirection));
+        float3 brdf = albedo / PI; // assuming lambertian
+        
+        p_hat = Luminance(brdf * eval.m_incomingRadiance * cosTheta);
                 
         if (!IsFiniteFloat(p_hat) || p_hat <= 0)
             continue;
@@ -159,24 +164,21 @@ Reservoir CreatePixelReservoirCurrentFrame()
 
     uint lightIndex = currentFrameReservoir.m_importantLightIndex;
     
-    if(lightIndex > g_lightConsts.cb_numLights)
+    if (lightIndex > g_sceneConsts.cb_numLights)
     {
         return currentFrameReservoir;
     }
-    
-    float3 hitPosition = g_positionGBuffer[DispatchRaysIndex().xy].xyz;
-    float3 surfaceNormal = DecodeRGBtoXYZ(g_surfaceNormalGBuffer[DispatchRaysIndex().xy].xyz);
-    Light light = g_lightConsts.cb_allLights[lightIndex];
+        
+    //Light light = g_lightConsts.cb_allLights[lightIndex];
+    StructuredBuffer<Light> lightBuffer = g_sceneLightsBuffer[g_sceneConsts.cb_lightBufferIndex];
+    Light light = lightBuffer[lightIndex];
     LightEval eval = EvalLightAtPoint(light, hitPosition);
-                                
-    //bool shadowed = IsPixelShadowedFromLight(hitPosition, eval.m_pointToLightDirection, surfaceNormal, eval.m_maxDist);
+                                                    
+    float cosTheta = saturate(dot(shadingNormal, eval.m_pointToLightDirection));
+    float3 brdf = albedo / PI; // assuming lambertian
+        
+    p_hat = Luminance(brdf * eval.m_incomingRadiance * cosTheta);
     
-    //if (shadowed)
-    //{
-    //    return currentFrameReservoir;    
-    //}
-                    
-    p_hat = Luminance(eval.m_incomingRadiance);
     currentFrameReservoir.m_weightOfImportantLight = p_hat > 0.f ? (currentFrameReservoir.m_sumOfWeightsOfAllProcessedLights / p_hat) / currentFrameReservoir.m_numProcessedLights : 0.f;    
     return currentFrameReservoir;
 }
@@ -219,19 +221,14 @@ void RayGenShader()
     uint2 index = (uint2) DispatchRaysIndex().xy;
     uint reservoirIndex = (DispatchRaysDimensions().x * index.y) + index.x;
     
-    // Change temporal to be the reservoir buffer
- //   g_prevReservoirBuffer[reservoirIndex]   = g_finalReservoirBuffer[reservoirIndex];
     g_positionGBuffer[index].xyz            = float3(0.f, 0.f, 0.f);
     g_normalsGBuffer[index].xyz             = float3(0.f, 0.f, 0.f);
     g_albedoGBuffer[index]                  = float4(0.f, 0.f, 0.f, 0.f);
     g_rmGBuffer[index].xyz                  = float3(0.f, 1.f, 0.f);
-    g_vertColorGBuffer[index]               = float4(0.f, 0.f, 0.f, 0.f);
-    g_surfaceTangentGBuffer[index].xyz      = float3(0.f, 0.f, 0.f);
-    g_surfaceBitangentGBuffer[index].xyz    = float3(0.f, 0.f, 0.f);
     g_surfaceNormalGBuffer[index].xyz       = float3(0.f, 0.f, 0.f);
     g_velocityGBuffer[index].xyz            = float3(0.f, 0.f, 0.f);
     g_depthBuffer[index]                    = 1.f.xxxx;
-    
+    g_denoisedRenderOutput[pixel]           = float4(0.f, 0.f, 0.f, 1.f);
         
     // Ray desc
     RayDesc ray;
@@ -297,7 +294,6 @@ void ClosestHitShader(inout RayPayload payload, in MyAttributes attribs)
     float4 v1Color = UnpackColors(v1.v_color);
     float4 v2Color = UnpackColors(v2.v_color);
     float4 interpolatedColor = v0Color * bary.x + v1Color * bary.y + v2Color * bary.z;
-    g_vertColorGBuffer[pixel] = interpolatedColor;
     
     float3 interpolatedNormal      = v0.v_normal * bary.x + v1.v_normal * bary.y + v2.v_normal * bary.z;
     float3 interpolatedTangent     = v0.v_tangent * bary.x + v1.v_tangent * bary.y + v2.v_tangent * bary.z;
@@ -307,8 +303,6 @@ void ClosestHitShader(inout RayPayload payload, in MyAttributes attribs)
     interpolatedTangent     = SafeNormalize(interpolatedTangent);
     interpolatedBitangent   = SafeNormalize(interpolatedBitangent);
     
-    g_surfaceTangentGBuffer[pixel].xyz = EncodeXYZtoRGB(interpolatedTangent);
-    g_surfaceBitangentGBuffer[pixel].xyz = EncodeXYZtoRGB(interpolatedBitangent);
     g_surfaceNormalGBuffer[pixel].xyz = EncodeXYZtoRGB(interpolatedNormal);
     
     // Albedo
@@ -332,7 +326,7 @@ void ClosestHitShader(inout RayPayload payload, in MyAttributes attribs)
     }
     else
     {
-        g_normalsGBuffer[pixel].xyz = interpolatedNormal;
+        g_normalsGBuffer[pixel].xyz = EncodeXYZtoRGB(interpolatedNormal);
     }
 
     // Roughness and Metalness
@@ -366,9 +360,6 @@ void MissShader(inout RayPayload payload)
     g_normalsGBuffer[pixel].xyz             = float3(0.f, 0.f, 0.f);
     g_albedoGBuffer[pixel]                  = float4(0.f, 0.f, 0.f, 0.f);
     g_rmGBuffer[pixel].xyz                  = float3(0.f, 1.f, 0.f);
-    g_vertColorGBuffer[pixel]               = float4(0.f, 0.f, 0.f, 0.f);
-    g_surfaceTangentGBuffer[pixel].xyz      = float3(0.f, 0.f, 0.f);
-    g_surfaceBitangentGBuffer[pixel].xyz    = float3(0.f, 0.f, 0.f);
     g_surfaceNormalGBuffer[pixel].xyz       = float3(0.f, 0.f, 0.f);
     g_depthBuffer[pixel]                    = 1.f.xxxx;
     

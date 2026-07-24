@@ -41,25 +41,32 @@ public:
 	
 	bool					m_enableJitter	= true;
 	bool					m_enableAccum	= true;
-	int						m_minBounces	= 0;
-// 	int						m_maxBounces	= 0;
+	int						m_maxBounces	= 0;
+
 	int						m_spp			= 32;
-	int						m_denoisePasses	= 3;
-	int						m_denoiseRadius	= 3;
-	float					m_sigmaSpatial	= 2.f;
+	int						m_denoisePasses	= 1;
+	int						m_denoiseRadius	= 1;
+	float					m_sigmaSpatial	= 0.8f;
+	float					m_sigmaPosition	= 0.5f;
+	float					m_normalPower	= 32.f;
 	int						m_maxFramesToAccumulate = -1;
+
+	int						m_spatialReusePasses =  3;
+	int						m_spatialReuseRadius =  32;
+	int						m_spatialReuseSamples =  5;
 
 	Clock*					m_gameClock		= nullptr;
 	Scene*					m_currentScene	= nullptr;
 	int						m_currentSceneIndex = SCENE_TEST;
 	bool					m_firstFrame		= true;
+
 	bool 					m_enableIndirect	= true;
 	bool 					m_enableDirect		= true;
 	bool 					m_temporalReuse		= true;
 	bool 					m_spatialReuse		= true;
-	bool					m_enableDenoiser	= false;
+	bool					m_enableDenoiser	= true;
+	bool					m_showDebugWindow = true;
 
 	float					m_frameTimes[120] = {};
-	int					m_valuesOffset = 0;
-
+	int						m_valuesOffset = 0;
 };

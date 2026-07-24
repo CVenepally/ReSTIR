@@ -44,12 +44,15 @@ public:
 	bool			m_useAmbient = false;
 	bool			m_renderLights = true;
 
-	float			m_minPointLightIntensity = 0.f;
-	float			m_maxPointLightIntensity = 3.f;
+	float			m_minPointLightIntensity = 0.1f;
+	float			m_maxPointLightIntensity = 0.3f;
+
+	int				m_maxLightsToRender = 850;
+	int				m_maxLightsInScene = 500000;
 
 	std::vector<SceneObject> m_sceneObjects;
 	std::vector<Light> m_allLights;
 	std::vector<Light> m_sceneLights;
 
-// 	StructuredBuffer* m_lightsBuffer;
+ 	StructuredBuffer* m_lightsBuffer;
 };

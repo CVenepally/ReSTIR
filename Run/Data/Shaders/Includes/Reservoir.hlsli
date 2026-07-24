@@ -40,8 +40,9 @@ bool UpdateReservoir(inout Reservoir reservoirToUpdate, uint sampledLightIndex, 
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------
-bool IsReservoirValid(Reservoir reservoirToCheck)
+bool IsReservoirValid(Reservoir reservoirToCheck, int lightCount)
 {
-    return (reservoirToCheck.m_importantLightIndex < UINT32_MAX);
+    return (reservoirToCheck.m_importantLightIndex < lightCount && reservoirToCheck.m_importantLightIndex >= 0);
+
 }
 

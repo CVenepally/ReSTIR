@@ -7,28 +7,21 @@
 #include "Includes/RNG.hlsli"
 #include "Includes/Resources.hlsli"
 
-////---------------------------------------------------------------------------------------------------------------------------------------------
-//RWTexture2D<float4> g_positionGBuffer                   : register(u1, space0);
-//RWTexture2D<float4> g_normalsGBuffer                    : register(u1, space1);
-//RWTexture2D<float4> g_velocityGBuffer                   : register(u1, space9);
-//RWTexture2D<float4> g_previousNormalsGBuffer            : register(u1, space10); 
-
-//RWStructuredBuffer<Reservoir> g_finalReservoirBuffer    : register(u2, space0);
-//RWStructuredBuffer<Reservoir> g_prevReservoirBuffer     : register(u2, space1);
-//RWStructuredBuffer<Reservoir> g_temporalReservoirBuffer : register(u2, space2);
-
-//ConstantBuffer<AppSettings>     g_appSettings           : register(b1, space0);
-//ConstantBuffer<CameraConstants> g_cameraConsts          : register(b2, space0);
-//ConstantBuffer<LightConstants>  g_lightConsts            : register(b4, space0);
-
 //-------------------------------------------------------------------------------------------------------------------------------------
-bool CombineReservoir(inout Reservoir currentFrameReservoir, Reservoir otherReservoir, float rand, float3 hitPosition)
+bool CombineReservoir(inout Reservoir currentFrameReservoir, Reservoir otherReservoir, float rand, float3 hitPosition, float3 shadingNormal, float3 albedo)
 {
     otherReservoir.m_numProcessedLights = min(otherReservoir.m_numProcessedLights, 20 * currentFrameReservoir.m_numProcessedLights);
     uint numProcessedLightsByBothReservoirs = otherReservoir.m_numProcessedLights + currentFrameReservoir.m_numProcessedLights;
     
-    LightEval otherReservoirLightEval = EvalLightAtPoint(g_lightConsts.cb_allLights[otherReservoir.m_importantLightIndex], hitPosition);
-    float otherReservoirLightTargetPDF = Luminance(otherReservoirLightEval.m_incomingRadiance);
+    StructuredBuffer<Light> lightBuffer = g_sceneLightsBuffer[g_sceneConsts.cb_lightBufferIndex];
+    Light light = lightBuffer[otherReservoir.m_importantLightIndex];
+    
+    LightEval otherReservoirLightEval = EvalLightAtPoint(light, hitPosition);
+        
+    float cosTheta = saturate(dot(shadingNormal, otherReservoirLightEval.m_pointToLightDirection));
+    float3 brdf = albedo / PI; // assuming lambertian
+    
+    float otherReservoirLightTargetPDF = Luminance(brdf * otherReservoirLightEval.m_incomingRadiance * cosTheta);
     
     float otherWeight = otherReservoir.m_weightOfImportantLight * otherReservoir.m_numProcessedLights * otherReservoirLightTargetPDF;
     currentFrameReservoir.m_sumOfWeightsOfAllProcessedLights += otherWeight;
@@ -39,12 +32,16 @@ bool CombineReservoir(inout Reservoir currentFrameReservoir, Reservoir otherRese
     }
     
     currentFrameReservoir.m_numProcessedLights = numProcessedLightsByBothReservoirs;
+ 
+    Light newLight = lightBuffer[currentFrameReservoir.m_importantLightIndex];
+    LightEval newLightEval = EvalLightAtPoint(newLight, hitPosition);
+    cosTheta = saturate(dot(shadingNormal, newLightEval.m_pointToLightDirection));
+
     
-    LightEval newLightEval = EvalLightAtPoint(g_lightConsts.cb_allLights[currentFrameReservoir.m_importantLightIndex], hitPosition);
-    float newLightTargetPDF = Luminance(newLightEval.m_incomingRadiance);
-    currentFrameReservoir.m_weightOfImportantLight = (newLightTargetPDF > 1e-6 && currentFrameReservoir.m_numProcessedLights > 0)
-    ? currentFrameReservoir.m_sumOfWeightsOfAllProcessedLights / (currentFrameReservoir.m_numProcessedLights * newLightTargetPDF)
-    : 0.f;
+    float newLightTargetPDF = Luminance(brdf * newLightEval.m_incomingRadiance * cosTheta);
+    currentFrameReservoir.m_weightOfImportantLight = (newLightTargetPDF > 1e-6 && currentFrameReservoir.m_numProcessedLights > 0) ? 
+                                                                currentFrameReservoir.m_sumOfWeightsOfAllProcessedLights / (currentFrameReservoir.m_numProcessedLights * newLightTargetPDF) 
+                                                              : 0.f;
     return true;
 }
 //---------------------------------------------------------------------------------------------------------------------------------------------
@@ -69,15 +66,15 @@ void ComputeMain(uint3 threadID: SV_DispatchThreadID)
         return;
     }
         
-    float3 currentNormal = DecodeRGBtoXYZ(g_normalsGBuffer[pixelCoords].xyz);
-    float3 prevNormal = DecodeRGBtoXYZ(g_prevNormalGBuffer[prevPixelCoords].xyz);
+    float3 currentNormal    = DecodeRGBtoXYZ(g_normalsGBuffer[pixelCoords].xyz);
+    float3 prevNormal       = DecodeRGBtoXYZ(g_prevNormalGBuffer[prevPixelCoords].xyz);
        
-    if (dot(currentNormal, prevNormal) < 0.99f)
+    if (dot(currentNormal, prevNormal) < 0.95f)
     {
         return;
     }
     
-    if (abs(g_prevDepthGBuffer[prevPixelCoords].x - g_depthBuffer[pixelCoords].x) > 0.01f)
+    if (abs(g_prevDepthGBuffer[prevPixelCoords].x - g_depthBuffer[pixelCoords].x) > 0.1f)
     {
         return;
     }
@@ -92,7 +89,7 @@ void ComputeMain(uint3 threadID: SV_DispatchThreadID)
     seed = GetSeedForRNG(seed, g_appSettings.cb_frameCount);
     float rand = RollRandomFloatZeroToOneAndUpdateSeed(seed);
     
-    CombineReservoir(currentReservoir, prevReservoir, rand, g_positionGBuffer[pixelCoords].xyz);
+    CombineReservoir(currentReservoir, prevReservoir, rand, g_positionGBuffer[pixelCoords].xyz, currentNormal, g_albedoGBuffer[pixelCoords].xyz);
     
     g_temporalReservoirBuffer[reservoirIndex]   = currentReservoir;
     g_finalReservoirBuffer[reservoirIndex]      = currentReservoir;    

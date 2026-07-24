@@ -148,7 +148,7 @@ void TestScene::Render()
 	std::vector<Light> lights;
 	g_renderer->SetDebugConstants(m_debugInfo);
 	g_renderer->SetLightConstants(m_sunLight, lights, m_ambientIntensity, RootSignatureType::RAY_TRACED);
-	g_renderer->SetSceneConstants(m_meshInfoBuffer->GetBindlessIndex(), static_cast<unsigned int>(m_staticGeoVBOs.size()));
+	g_renderer->SetSceneConstants(m_meshInfoBuffer->GetBindlessIndex(), static_cast<unsigned int>(m_staticGeoVBOs.size()), 0, 0);
 	g_renderer->DispatchRays(m_tlas);
 }
 

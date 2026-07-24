@@ -7,7 +7,7 @@
 #include "Engine/Core/EngineCommon.hpp"
 #include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Core/XMLUtils.hpp"
-#include "Engine/Core/NamedStrings.hpp"
+#include "Engine/Core/NamedProperties.hpp"
 #include "Engine/Core/DevConsole.hpp"
 #include "Engine/Core/EventSystem.hpp"
 #include "Engine/Core/DebugRender.hpp"

@@ -6,7 +6,6 @@
 	enableJitter="true"
 	enableFrameAccumulation="true"
 	enableRaytrace="true"
-	minBounces="3"
-	maxBounces="12"
+	maxBounces="6"
 	enableIndirect="true"
 />

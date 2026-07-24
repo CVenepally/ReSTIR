@@ -1,12 +1,44 @@
 #include "Includes/Resources.hlsli"
 
 
+//---------------------------------------------------------------------------------------------------------------------------------------------
 float SpatialWeight(int x, int y, float sigma)
 {
     float r2 = float(x * x + y * y);
     return exp(-r2 / (2.0 * sigma * sigma));
 }
 
+//---------------------------------------------------------------------------------------------------------------------------------------------
+float3 RTTandODTFit(float3 inputColor)
+{
+    float3 a = inputColor * (inputColor + 0.0245786f) - 0.000090537f;
+    float3 b = inputColor * (0.983729f * inputColor + 0.4329510f) + 0.238081f;
+    return a / b;    
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------
+float3 ACESFilmToneMap(float3 inputColor)
+{
+    float3x3 acesInputMap =
+    {
+        0.59719f, 0.35458f, 0.04823f,
+        0.07600f, 0.90834f, 0.01566f,
+        0.02840f, 0.13383f, 0.83777f
+    };
+    
+    float3x3 acesOutputMap =
+    {
+        1.60475f, -0.53108f, -0.07367f,
+        -0.10208f, 1.10813f, -0.00605f,
+        -0.00327f, -0.07276f, 1.07602f
+    };
+    
+    float3 finalColor = mul(inputColor, acesInputMap);
+    finalColor = RTTandODTFit(finalColor);
+    return mul(finalColor, acesOutputMap);
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------
 [numthreads(8, 8, 1)]
 void ComputeMain(uint3 threadID : SV_DispatchThreadID)
 {
@@ -17,7 +49,7 @@ void ComputeMain(uint3 threadID : SV_DispatchThreadID)
     if (pixel.x >= screenDims.x || pixel.y >= screenDims.y)
         return;
 
-    float3 centerColor  = g_noisyRenderTarget[pixel].rgb;
+    float3 centerColor  = g_noisyRenderOutput[pixel].rgb;
     float3 centerPos    = g_positionGBuffer[pixel].xyz;
     float3 centerN      = DecodeRGBtoXYZ(g_normalsGBuffer[pixel].xyz);
 
@@ -37,7 +69,7 @@ void ComputeMain(uint3 threadID : SV_DispatchThreadID)
             q.x = clamp(q.x, 0, (int) screenDims.x - 1);
             q.y = clamp(q.y, 0, (int) screenDims.y - 1);
 
-            float3 sampleColor = g_noisyRenderTarget[q].rgb;
+            float3 sampleColor = g_noisyRenderOutput[q].rgb;
             float3 samplePos = g_positionGBuffer[q].xyz;
             float3 sampleN = DecodeRGBtoXYZ(g_normalsGBuffer[q].xyz);
 
@@ -53,5 +85,8 @@ void ComputeMain(uint3 threadID : SV_DispatchThreadID)
         }
     }
 
-    g_renderTarget[pixel] = float4(accum / max(wsum, 1e-5), 1.0);
+    //float4 nonHDRColor = float4(accum / max(wsum, 1e-5), 1.0);    
+    //g_denoisedRenderOutput[pixel] = float4(ACESFilmToneMap(nonHDRColor.rgb), nonHDRColor.a);
+    g_denoisedRenderOutput[pixel] = float4(accum / max(wsum, 1e-5), 1.0);
+    
 }

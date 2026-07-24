@@ -83,7 +83,7 @@ float3 OffsetRay(const float3 p, const float3 n)
 
 
 //-------------------------------------------------------------------------------------------------------------------------------------
-bool IsPixelShadowedFromLight(float3 hitPosition, float3 directionToLight, float3 surfaceNormal, float maxDist = FP32Max)
+bool IsPointShadowedFromLight(float3 hitPosition, float3 directionToLight, float3 surfaceNormal, float maxDist = FP32Max)
 {
     RayDesc shadowRayDesc;
     shadowRayDesc.Origin = OffsetRay(hitPosition, surfaceNormal);
@@ -98,50 +98,125 @@ bool IsPixelShadowedFromLight(float3 hitPosition, float3 directionToLight, float
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------
-float SampleLight(float rand, float3 hitPos, BrdfData data, out float out_pickedWeight, out float out_totalWeight)
-{
-    out_totalWeight = 0.f;
+//float SampleLight(float rand, float3 hitPos, BrdfData data, out float out_pickedWeight, out float out_totalWeight)
+//{
+//    out_totalWeight = 0.f;
     
-    for (int i = 0; i < g_lightConsts.cb_numLights; i++)
-    {
-        Light light = g_lightConsts.cb_allLights[i];
-        LightEval evalResult = EvalLightAtPoint(light, hitPos);
-        float lightWeight = ComputeLightWeight(data, evalResult);
-        out_totalWeight += lightWeight;
-    }
+//    for (int i = 0; i < g_sceneConsts.cb_numLights; i++)
+//    {
+//        Light light = g_lightConsts.cb_allLights[i];
+//        LightEval evalResult = EvalLightAtPoint(light, hitPos);
+//        float lightWeight = ComputeLightWeight(data, evalResult);
+//        out_totalWeight += lightWeight;
+//    }
     
-    if(out_totalWeight <= 0.f)
-    {
-        out_pickedWeight = 0.f;
-        return -1;
-    }
+//    if(out_totalWeight <= 0.f)
+//    {
+//        out_pickedWeight = 0.f;
+//        return -1;
+//    }
 
-    float value = rand * out_totalWeight;
-    float c = 0.f;
+//    float value = rand * out_totalWeight;
+//    float c = 0.f;
    
     
-    for (int j = 0; j < g_lightConsts.cb_numLights; j++)
-    {
-        Light light = g_lightConsts.cb_allLights[j];
-        LightEval evalResult = EvalLightAtPoint(light, hitPos);
-        float lightWeight = ComputeLightWeight(data, evalResult);
-        c += lightWeight;
+//    for (int j = 0; j < g_lightConsts.cb_numLights; j++)
+//    {
+//        Light light = g_lightConsts.cb_allLights[j];
+//        LightEval evalResult = EvalLightAtPoint(light, hitPos);
+//        float lightWeight = ComputeLightWeight(data, evalResult);
+//        c += lightWeight;
         
-        if(value <= c)
-        {
-            out_pickedWeight = max(lightWeight, 1e-8);
-            return j;
-        }
+//        if(value <= c)
+//        {
+//            out_pickedWeight = max(lightWeight, EPS);
+//            return j;
+//        }
+//    }
+
+//    Light lastLight = g_lightConsts.cb_allLights[g_lightConsts.cb_numLights - 1];
+//    LightEval eval = EvalLightAtPoint(lastLight, hitPos);
+//    float lastWeight = ComputeLightWeight(data, eval);
+    
+//    out_pickedWeight = max(lastWeight, EPS);
+//    return g_lightConsts.cb_numLights - 1;
+//}
+
+//-------------------------------------------------------------------------------------------------------------------------------------
+uint SampleLightWRS(float randSeed, float3 hitPos, inout float out_chosenWeight, inout float out_totalWeight)
+{
+    Reservoir currentFrameReservoir;
+    InitReservoir(currentFrameReservoir);
+        
+    float pdf = 1.f / g_sceneConsts.cb_numLights;
+    float p_hat = 0.f;
+    int M = 32;
+    
+    uint2 pixel = DispatchRaysIndex().xy;
+    float3 shadingNormal = DecodeRGBtoXYZ(g_normalsGBuffer[pixel].xyz);
+    float3 albedo = g_albedoGBuffer[pixel].xyz;
+
+    
+    for (uint i = 0; i < M; i++)
+    {
+        uint lightIndex = min((uint) (RollRandomFloatZeroToOneAndUpdateSeed(randSeed) * g_sceneConsts.cb_numLights), g_sceneConsts.cb_numLights - 1);
+        
+        StructuredBuffer<Light> lightBuffer = g_sceneLightsBuffer[g_sceneConsts.cb_lightBufferIndex];
+        Light light = lightBuffer[lightIndex];
+
+        LightEval eval = EvalLightAtPoint(light, hitPos);
+                
+        float cosTheta = saturate(dot(shadingNormal, eval.m_pointToLightDirection));
+        float3 brdf = albedo / PI; // assuming lambertian
+        
+        p_hat = Luminance(brdf * eval.m_incomingRadiance * cosTheta);
+                
+        if (!IsFiniteFloat(p_hat) || p_hat <= 0)
+            continue;
+                
+        float weightOfLight = p_hat / pdf;
+                
+        if (!IsFiniteFloat(weightOfLight) || weightOfLight <= 0)
+            continue;
+  
+        UpdateReservoir(currentFrameReservoir, lightIndex, weightOfLight, randSeed);
     }
 
-    out_pickedWeight = 1e-8;
-    return g_lightConsts.cb_numLights - 1;
+    uint lightIndex = currentFrameReservoir.m_importantLightIndex;
+    
+    if (lightIndex > g_sceneConsts.cb_numLights)
+    {
+        return lightIndex;
+    }
+    
+    StructuredBuffer<Light> lightBuffer = g_sceneLightsBuffer[g_sceneConsts.cb_lightBufferIndex];
+    Light light = lightBuffer[lightIndex];
+    
+    LightEval eval = EvalLightAtPoint(light, hitPos);
+                                                    
+    float cosTheta = saturate(dot(shadingNormal, eval.m_pointToLightDirection));
+    float3 brdf = albedo / PI; // assuming lambertian
+        
+    p_hat = Luminance(brdf * eval.m_incomingRadiance * cosTheta);
+    
+    p_hat = max(p_hat, 1e-4f);
+    currentFrameReservoir.m_weightOfImportantLight = p_hat > 0.f ? (currentFrameReservoir.m_sumOfWeightsOfAllProcessedLights / p_hat) / currentFrameReservoir.m_numProcessedLights : 0.f;
+    
+    out_chosenWeight = max(currentFrameReservoir.m_weightOfImportantLight, EPS);
+    out_totalWeight = max(currentFrameReservoir.m_sumOfWeightsOfAllProcessedLights, EPS);
+    return lightIndex;
+
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------
 float4 DebugViews()
 {
     uint2 pixel = DispatchRaysIndex().xy;
+    uint2 screenDims = DispatchRaysDimensions().xy;
+    uint reservoirIndex = (screenDims.x * pixel.y) + pixel.x;
+    Reservoir reservoir = g_finalReservoirBuffer[reservoirIndex];
+
+    int lightCount = g_sceneConsts.cb_numLights;
     
     if(g_debugConsts.cb_debugView == 1)
     {
@@ -153,15 +228,15 @@ float4 DebugViews()
     }
     if(g_debugConsts.cb_debugView == 3)
     {
-        return g_vertColorGBuffer[pixel];
-    }
-    if(g_debugConsts.cb_debugView == 4)
-    {
         return g_normalsGBuffer[pixel];
+    }
+    if (g_debugConsts.cb_debugView == 4)
+    {
+        return g_surfaceNormalGBuffer[pixel];
     }
     if(g_debugConsts.cb_debugView == 5)
     {
-        float4 motionVector = g_velocityGBuffer[pixel] * 10.f;
+        float4 motionVector = g_velocityGBuffer[pixel] * 100.f;
         if(motionVector.x < 0)
         {
             motionVector.x *= -1.f;
@@ -175,345 +250,213 @@ float4 DebugViews()
     }
     if(g_debugConsts.cb_debugView == 6)
     {
-        return g_surfaceNormalGBuffer[pixel];
+        return g_rmGBuffer[pixel].gggg;
     }
     if(g_debugConsts.cb_debugView == 7)
     {
-        return g_surfaceTangentGBuffer[pixel];
-    }
-    if(g_debugConsts.cb_debugView == 8)
-    {
-        return g_surfaceBitangentGBuffer[pixel];
-    }
-    if(g_debugConsts.cb_debugView == 9)
-    {
-        return g_rmGBuffer[pixel].gggg;
-    }
-    if(g_debugConsts.cb_debugView == 10)
-    {
         return g_rmGBuffer[pixel].bbbb;
     }
-    if (g_debugConsts.cb_debugView == 11)
+    if (g_debugConsts.cb_debugView == 8)
     {
-        uint pixelIndex = (DispatchRaysDimensions().x * pixel.y) + pixel.x;
-        Reservoir reservoir = g_temporalReservoirBuffer[pixelIndex];
-        
-        if (IsReservoirValid(reservoir))
-        {
-            return (float) reservoir.m_importantLightIndex.xxxx / (float) g_lightConsts.cb_numLights;
-        }
-        return 0.f.xxxx;
+        return g_depthBuffer[pixel];
     }
-    if (g_debugConsts.cb_debugView == 12)
-    {
-        uint pixelIndex = (DispatchRaysDimensions().x * pixel.y) + pixel.x;
-        Reservoir reservoir = g_prevReservoirBuffer[pixelIndex];
-        
-        if (IsReservoirValid(reservoir))
-        {
-            return (float) reservoir.m_importantLightIndex.xxxx / (float) g_lightConsts.cb_numLights;
-        }
-        return 0.f.xxxx;
-    }
-    if (g_debugConsts.cb_debugView == 13)
-    {
-        if (g_depthBuffer[pixel].x <= 0.2)
-        {
-            return g_depthBuffer[pixel];
-        }
-        else
-        {
-            return 1.f.xxxx;
-        }
-    }
-    
+   
     return 0.f.xxxx;
 }
 
-// Utils End---------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------------
+float4 DoReSTIR(inout RayPayload payload)
+{
+    float4      color           = float4(0.f.xxx, 1.f);
+    uint2       screenDims      = DispatchRaysDimensions().xy;
+    uint2       pixel           = DispatchRaysIndex().xy;
+    uint        reservoirIndex  = (screenDims.x * pixel.y) + pixel.x;
+    Reservoir   reservoir       = g_finalReservoirBuffer[reservoirIndex];
+    g_prevReservoirBuffer[reservoirIndex] = reservoir;
+
+    if(!IsReservoirValid(reservoir, g_sceneConsts.cb_numLights))
+        return color;
+    
+    StructuredBuffer<Light> lightBuffer = g_sceneLightsBuffer[g_sceneConsts.cb_lightBufferIndex];
+    Light light = lightBuffer[reservoir.m_importantLightIndex];
+
+    //Light light     = g_lightConsts.cb_allLights[reservoir.m_importantLightIndex];
+    LightEval eval  = EvalLightAtPoint(light, payload.m_worldPosition);
+    
+    bool shadowed = IsPointShadowedFromLight(payload.m_worldPosition, eval.m_pointToLightDirection, payload.m_surfaceNormal, eval.m_maxDist);
+     
+    //if (shadowed)
+    //{
+    //    if(g_debugConsts.cb_debugView == 9)
+    //    {
+    //        return 1.f.xxxx;
+    //    }
+    //    return color;
+    //}
+    
+    BrdfData data           = GetBrdfData(payload, eval.m_pointToLightDirection);
+    float3 lightDiffuse     = CalculateDiffuse_Lambert(data);
+    float3 lightSpecular    = CalculateSpecular_MicroFacet(data);
+    float3 f                = (1.0.xxx - data.m_F) * lightDiffuse + lightSpecular;
+    color.rgb               = f * eval.m_incomingRadiance * reservoir.m_weightOfImportantLight;
+                    
+    if (!IsFiniteFloat3(color.rgb))
+        color.rgb = 0;
+
+    color.rgb = ClampRadiance(color.rgb, MAX_RADIANCE);
+    
+    return color;
+}
 
 //-------------------------------------------------------------------------------------------------------------------------------------
-//float4 PathTrace(uint randSeed, RayDesc ray)
-//{
-//    float4 finalColor = float4(0.f, 0.f, 0.f, 1.f);
-//    float3 throughput = float3(1.f, 1.f, 1.f);
-//    float bounce = 0;
+float4 DoDirectMIS(inout RayPayload payload)
+{
+    float4 color = float4(0.f.xxx, 1.f);
+    return color;
+}
+
+//-------------------------------------------------------------------------------------------------------------------------------------
+float4 DoIndirectLighting(inout RayPayload initialPayload)
+{
+    float4 indirectColor    = float4(0.f, 0.f, 0.f, 1.f);
+    uint2 pixel             = DispatchRaysIndex().xy;
+    uint randSeed           = GetSeedForRNG(pixel.x, pixel.y);
+    randSeed                = GetSeedForRNG(randSeed, g_appSettings.cb_frameCount);
+    float3 throughput       = 1.f.xxx;
     
-//    RayPayload payload;
-//    payload.m_didHit = false;
+    BrdfData data           = GetBrdfData(initialPayload, float3(0.f, 0.f, 1.f));
+       
+    for (int bounce = 0; bounce < g_appSettings.cb_maxBounces; bounce++)
+    {
+        // Find the direction to shoot the ray in 
+        int brdfType;    
+        if (initialPayload.m_metalness == 1 && initialPayload.m_roughness == 0)
+        {
+            brdfType = BRDF_SPECULAR;
+        }
+        else
+        {
+            float brdfProb = max(0.01f, GetBRDFProbability(data));
+            if (RollRandomFloatZeroToOneAndUpdateSeed(randSeed) < brdfProb)
+            {
+                brdfType = BRDF_SPECULAR;
+                throughput /= brdfProb;
+            }
+            else
+            {
+                brdfType = BRDF_DIFFUSE;
+                throughput /= (1 - brdfProb);
+            }
+        }
     
-//    while(true)
-//    {
-//        if (IsFloat3Zero(throughput))
-//        {
-//            break;
-//        }
-        
-//        bounce += 1;
-        
-//        TraceRay(g_tlas, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFFFFFFFF, RAY_PRIMARY, RAY_COUNT, RAY_PRIMARY, ray, payload);
-        
-//        if(!payload.m_didHit)
-//        {
-//            //if (g_debugConsts.cb_envLighting)
-//            //{
-//            //    float3 dir = SafeNormalize(payload.m_worldRayDirection);
-//            //    float t = 0.5f * (dir.z + 1.0f);
-//            //    float3 sky = lerp(float3(0.3f, 0.4f, 0.7f), float3(0.7f, 0.9f, 1.0f), t);
+        float2 randFloats = float2(RollRandomFloatZeroToOneAndUpdateSeed(randSeed), RollRandomFloatZeroToOneAndUpdateSeed(randSeed));
+        float3 newRayDir = 0.f.xxx;
+        float3 sampleWeight = 0.f.xxx;
+        if (!EvaluateIndirectBRDF(randFloats, data, brdfType, newRayDir, sampleWeight))
+        {
+            break;
+        }
     
-//            //    finalColor.xyz += throughput * sky;
-            
-//            //    if (g_debugConsts.cb_debugView != 0)
-//            //    {
-//            //        finalColor = float4(0.f, 0.f, 0.f, 1.f);
-//            //    }
-//            //}
-//            //else
-//            //{
-//            //    finalColor = float4(1.f, 1.f, 1.f, 1.f);
-//            //    break;
-//            //}
+        throughput *= sampleWeight;
         
-            
-//            finalColor = float4(0.f.xxx, 1.f);
-//        }
-                
+        if (!IsFiniteFloat3(throughput))
+            break;
+        throughput = min(throughput, 1e4.xxx);
+
+        // Russian roulette
+        if (bounce > 0)
+        {
+            float rrProb = clamp(Luminance(throughput), 0.05f, 0.95f);
+            if (rrProb < RollRandomFloatZeroToOneAndUpdateSeed(randSeed))
+                break;
+            throughput /= rrProb;
+        }
         
-//        float3 hitPosition          = payload.m_worldPosition;
-//        float3 pixelNormal          = payload.m_pixelNormal;
-//        float3 surfaceNormal        = payload.m_surfaceNormal;
-//        float3 worldRayDirection    = payload.m_worldRayDirection;
-//        float4 baseColor            = float4(payload.m_albedo, 1.0f);
-//        float metalness             = payload.m_metalness;
-//        float roughness             = payload.m_roughness;
+        RayDesc indirectRay;
+        indirectRay.Direction = newRayDir;
+        indirectRay.Origin = OffsetRay(initialPayload.m_worldPosition, initialPayload.m_surfaceNormal);
+        indirectRay.TMin = 0.f;
+        indirectRay.TMax = FP32Max;
 
-//        if(g_appSettings.cb_doDirect == 1)
-//        {
-//            BrdfData temp = GetBrdfData(payload, float3(0.f, 0.f, 1.f));
-
-//            if(g_debugConsts.cb_lightSamplingMethod == 0) //CDF
-//            {
-//                float totalWeightSum;
-//                float chosenWeight;
-            
-//                float rand = RollRandomFloatZeroToOneAndUpdateSeed(randSeed);
-//                int lightIndex = SampleLight(rand, hitPosition, temp, chosenWeight, totalWeightSum);
-            
-//                if (lightIndex >= 0)
-//                {
-//                    Light light = g_lightConsts.cb_allLights[lightIndex];
-//                    LightEval eval = EvalLightAtPoint(light, hitPosition);
-                
-//                    BrdfData data = GetBrdfData(payload, eval.m_pointToLightDirection);
-                
-//                    bool shadowed = IsPixelShadowedFromLight(hitPosition, eval.m_pointToLightDirection, data.m_surfaceNormal, eval.m_maxDist);
-                
-//                    if (!shadowed)
-//                    {
-//                        float3 lightDiffuse = (g_debugConsts.cb_diffuseModel == 0) ? CalculateDiffuse_OrenNayar(data) : CalculateDiffuse_Lambert(data);
-//                        float3 lightSpecular = (g_debugConsts.cb_specularModel == 0) ? CalculateSpecular_MicroFacet(data) : CalculateSpecular_Phong(data);
-                    
-//                        float3 f = (1.0.xxx - data.m_F) * lightDiffuse + lightSpecular;
-//                        float invPDF = totalWeightSum / max(chosenWeight, 1e-8);
-//                        float3 color = throughput * f * eval.m_incomingRadiance * invPDF;
-                    
-//                        if (!IsFiniteFloat3(color))
-//                            color = 0;
-//                        color = ClampRadiance(color, 50.f);
-                    
-//                        finalColor.xyz += color;
-//                    }
-//                }
-//            }
-//            else if (g_debugConsts.cb_lightSamplingMethod == 1)
-//            {
-//                float pdf = 1.f / g_lightConsts.cb_numLights;
-//                float p_hat = 0.f;
-//                int M = g_appSettings.cb_maxSamples;
-            
-//                uint2 index = (uint2) DispatchRaysIndex().xy;
-//                uint reservoirIndex = (DispatchRaysDimensions().x * index.y) + index.x;
-
-//                Reservoir currentFrameReservoir = g_temporalReservoirBuffer[reservoirIndex];
-                       
-//                for (uint i = 0; i < M; i++)
-//                {
-//                    uint lightIndex = min((uint) (RollRandomFloatZeroToOneAndUpdateSeed(randSeed) * g_lightConsts.cb_numLights), g_lightConsts.cb_numLights - 1);
-                                
-//                    LightEval eval = EvalLightAtPoint(g_lightConsts.cb_allLights[lightIndex], hitPosition);
-                
-//                    p_hat = length(eval.m_incomingRadiance);
-                
-//                    if (!IsFiniteFloat(p_hat) || p_hat <= 0)
-//                        continue;
-                
-//                    float weightOfLight = p_hat / pdf;
-                
-//                    if (!IsFiniteFloat(weightOfLight) || weightOfLight <= 0)
-//                        continue;
-  
-//                    UpdateReservoir(currentFrameReservoir, lightIndex, weightOfLight, randSeed);
-//                }
-                                
-//                uint lightIndex = currentFrameReservoir.m_importantLightIndex;
-            
-//            //float v = ((float) res.m_importantLightIndex) / (float) g_lightConsts.cb_numLights;
-//            //return v.xxxx;
-            
-//                if (lightIndex < 0 || lightIndex >= g_lightConsts.cb_numLights)
-//                {
-//                    continue;
-//                }
-            
-//                Light light = g_lightConsts.cb_allLights[lightIndex];
-//                LightEval eval = EvalLightAtPoint(light, hitPosition);
-                
-//                BrdfData data = GetBrdfData(payload, eval.m_pointToLightDirection);
-                
-//                bool shadowed = IsPixelShadowedFromLight(hitPosition, eval.m_pointToLightDirection, data.m_surfaceNormal, eval.m_maxDist);
-                
-//                if (!shadowed)
-//                {
-            
-//                    float3 lightDiffuse = (g_debugConsts.cb_diffuseModel == 0) ? CalculateDiffuse_OrenNayar(data) : CalculateDiffuse_Lambert(data);
-//                    float3 lightSpecular = (g_debugConsts.cb_specularModel == 0) ? CalculateSpecular_MicroFacet(data) : CalculateSpecular_Phong(data);
-                    
-//                    float3 f = (1.0.xxx - data.m_F) * lightDiffuse + lightSpecular;
-//                    p_hat = length(eval.m_incomingRadiance);
-//                    currentFrameReservoir.m_weightOfImportantLight = p_hat > 0.f ? (currentFrameReservoir.m_sumOfWeightsOfAllProcessedLights / p_hat) / currentFrameReservoir.m_numProcessedLights : 0.f;
-//                    float3 color = throughput * f * eval.m_incomingRadiance * currentFrameReservoir.m_weightOfImportantLight;
-                    
-//                    if (!IsFiniteFloat3(color))
-//                        color = 0;
-//                    color = ClampRadiance(color, 50.f);
-                    
-//                    finalColor.xyz += color;
-//                }
-
-//            }
-//        }
+        initialPayload.m_didHit = false;
+        TraceRay(g_tlas, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFFFFFFFF, RAY_PRIMARY, RAY_COUNT, RAY_PRIMARY, indirectRay, initialPayload);
         
-//        if(bounce > g_appSettings.cb_minBounces)
-//        {
-//            if (!IsFiniteFloat3(throughput))
-//                break;
-           
-//            float rrProb = saturate(Luminance(throughput));
-//            rrProb = clamp(rrProb, 0.05f, 0.95f);
-            
-//            if(rrProb < RollRandomFloatZeroToOneAndUpdateSeed(randSeed))
-//            {
-//                break;
-//            }
-            
-//            throughput /= rrProb;
-//        }
+        if (!initialPayload.m_didHit)
+        {
+            break;
+        }
         
-//        BrdfData bsdfData = GetBrdfData(payload, float3(0.f, 0.f, 1.f));
-
-//        if (g_appSettings.cb_doIndirect == 1)
-//        {
-//            float3 brdfWeight;
-//            float2 u = float2(RollRandomFloatZeroToOneAndUpdateSeed(randSeed), RollRandomFloatZeroToOneAndUpdateSeed(randSeed));
-
-//            int brdfType;
-
-//            if (metalness == 1.f && roughness == 0.f)
-//            {
-//                brdfType = BRDF_SPECULAR;
-//            }
-//            else
-//            {
-//                float prob = max(0.001f, GetBRDFProbability(bsdfData));
-
-//                if (RollRandomFloatZeroToOneAndUpdateSeed(randSeed) < prob)
-//                {
-//                    brdfType = BRDF_SPECULAR;
-//                    throughput /= prob;
-//                }
-//                else
-//                {
-//                    brdfType = BRDF_DIFFUSE;
-//                    throughput /= (1.f - prob);
-//                }
-//            }
-
-//            float3 nextDir;
-//            if (!EvaluateIndirectBRDF(u, bsdfData, brdfType, nextDir, brdfWeight))
-//            {
-//                break;
-//            }
-
-//            throughput *= brdfWeight;
-
-//            if (!IsFiniteFloat3(throughput))
-//                break;
-            
-//            throughput = min(throughput, 1e4.xxx);
-            
-//            ray.Origin = OffsetRay(hitPosition, surfaceNormal);
-//            ray.Direction = nextDir;
-//        }
-//        else
-//        {
-//            break;
-//        }
-//    }
+        float3 hitPos = initialPayload.m_worldPosition;
+        float3 surfaceNormal = initialPayload.m_surfaceNormal;
+        float3 shadingNormal = initialPayload.m_pixelNormal;
         
-//    return finalColor;
-//}
+        // Shade the hit point
+        float rand = RollRandomFloatZeroToOneAndUpdateSeed(randSeed);
+        data = GetBrdfData(initialPayload, float3(0.f, 0.f, 1.f));
+        
+        float chosenWeight = 0.f;
+        float totalWeight = 0.f;
+        
+        int sampledLightIndex = SampleLightWRS(randSeed, hitPos, chosenWeight, totalWeight);
+//        int sampledLightIndex = SampleLight(rand, hitPos, data, chosenWeight, totalWeight);
+        
+        if(sampledLightIndex >= 0 && sampledLightIndex < g_sceneConsts.cb_numLights)
+        {
+            StructuredBuffer<Light> lightBuffer = g_sceneLightsBuffer[g_sceneConsts.cb_lightBufferIndex];
+            Light light = lightBuffer[sampledLightIndex];
+            
+            LightEval lightEval = EvalLightAtPoint(light, hitPos);
+            
+            bool isShadowed = IsPointShadowedFromLight(hitPos, lightEval.m_pointToLightDirection, surfaceNormal, lightEval.m_maxDist);
+            
+            if(!isShadowed)
+            {
+                BrdfData brdfData       = GetBrdfData(initialPayload, lightEval.m_pointToLightDirection);
+                float3 lightDiffuse     = CalculateDiffuse_Lambert(brdfData);
+                float3 lightSpecular    = CalculateSpecular_MicroFacet(brdfData);
+                float3 f                = (1.0.xxx - brdfData.m_F) * lightDiffuse + lightSpecular;
+                //float invPDF            = totalWeight / max(chosenWeight, EPS);
+                //invPDF                  = min(invPDF, float(g_lightConsts.cb_numLights));
+                //float3 color            = f * lightEval.m_incomingRadiance * invPDF * throughput;
+                float3 color = f * lightEval.m_incomingRadiance * chosenWeight * throughput;
+                
+                if (!IsFiniteFloat3(color))
+                    color = 0;
 
+                float maxContrib        = 20.f / max(Luminance(throughput), 0.01f);
 
+                color                   = ClampRadiance(color, maxContrib);
+                
+                indirectColor.rgb += color;
+            }    
+        }        
+    }
+    
+    return indirectColor;
+}
 
+//-------------------------------------------------------------------------------------------------------------------------------------
 [shader("raygeneration")]
 void RayGenShader()
 {
     uint2 pixel = DispatchRaysIndex().xy;
-    uint reservoirIndex = (DispatchRaysDimensions().x * pixel.y) + pixel.x;
-
-    Reservoir reservoir = g_finalReservoirBuffer[reservoirIndex];
-//    Reservoir reservoir = g_temporalReservoirBuffer[reservoirIndex];
-
-    float3 hitPosition = g_positionGBuffer[pixel].xyz;
-    float3 pixelNormal = DecodeRGBtoXYZ(g_normalsGBuffer[pixel].xyz);
-    float3 surfaceNormal = DecodeRGBtoXYZ(g_surfaceNormalGBuffer[pixel].xyz);
-    float4 baseColor = g_albedoGBuffer[pixel];
-    float roughness = g_rmGBuffer[pixel].g;
-    float metalness = g_rmGBuffer[pixel].b;
-    g_prevNormalGBuffer[pixel].xyz = g_normalsGBuffer[pixel].xyz;
-    g_prevDepthGBuffer[pixel].xyz = g_depthBuffer[pixel].xyz;
+        
+    float3 hitPosition              = g_positionGBuffer[pixel].xyz;
+    float3 pixelNormal              = DecodeRGBtoXYZ(g_normalsGBuffer[pixel].xyz);
+    float3 surfaceNormal            = DecodeRGBtoXYZ(g_surfaceNormalGBuffer[pixel].xyz);
+    float4 baseColor                = g_albedoGBuffer[pixel];
+    float roughness                 = g_rmGBuffer[pixel].g;
+    float metalness                 = g_rmGBuffer[pixel].b;
+    g_prevNormalGBuffer[pixel].xyz  = g_normalsGBuffer[pixel].xyz;
+    g_prevDepthGBuffer[pixel].xyz   = g_depthBuffer[pixel].xyz;
     
-    if(g_debugConsts.cb_debugView != 0)
+    if (g_debugConsts.cb_debugView > 0 && g_debugConsts.cb_debugView != 9)
     {
-        g_renderTarget[pixel] = DebugViews();
-        InitReservoir(g_prevReservoirBuffer[reservoirIndex]);
-        g_prevReservoirBuffer[reservoirIndex] = reservoir;
+        g_denoisedRenderOutput[pixel]   = DebugViews();
+        g_noisyRenderOutput[pixel]      = DebugViews();
         return;
     }
-            
-    if(reservoir.m_importantLightIndex >= g_lightConsts.cb_numLights)
-    {
-        g_renderTarget[pixel] = float4(0.f, 0.f, 0.f, 1.f);
-        InitReservoir(g_prevReservoirBuffer[reservoirIndex]);
-        g_prevReservoirBuffer[reservoirIndex] = reservoir;
-        return;
-    }
-    
-    Light light = g_lightConsts.cb_allLights[reservoir.m_importantLightIndex];
-    LightEval eval = EvalLightAtPoint(light, hitPosition);
-    
-    bool shadowed = IsPixelShadowedFromLight(hitPosition, eval.m_pointToLightDirection, surfaceNormal);
-    
-    if(shadowed)
-    {
-        if (reservoir.m_importantLightIndex >= g_lightConsts.cb_numLights)
-        {
-            g_renderTarget[pixel] = float4(0.f, 0.f, 0.f, 1.f);
-            g_prevReservoirBuffer[reservoirIndex] = reservoir;
-            return;
-        }
-    }
-    
+                
     RayPayload payload;
     payload.m_didHit            = true;
     payload.m_albedo            = g_albedoGBuffer[pixel].rgb;
@@ -521,166 +464,30 @@ void RayGenShader()
     payload.m_roughness         = g_rmGBuffer[pixel].g;
     payload.m_metalness         = g_rmGBuffer[pixel].b;
     payload.m_surfaceNormal     = DecodeRGBtoXYZ(g_surfaceNormalGBuffer[pixel].xyz);
-    payload.m_worldTangent      = DecodeRGBtoXYZ(g_surfaceTangentGBuffer[pixel].xyz);
-    payload.m_worldBitangent    = DecodeRGBtoXYZ(g_surfaceBitangentGBuffer[pixel].xyz);
     payload.m_worldRayDirection = normalize(hitPosition - g_cameraConsts.cb_cameraPosition.xyz);
     payload.m_worldPosition     = g_positionGBuffer[pixel].xyz;
     
-    BrdfData data           = GetBrdfData(payload, eval.m_pointToLightDirection);
-    float3 lightDiffuse     = (g_debugConsts.cb_diffuseModel == 0) ? CalculateDiffuse_OrenNayar(data) : CalculateDiffuse_Lambert(data);
-    float3 lightSpecular    = (g_debugConsts.cb_specularModel == 0) ? CalculateSpecular_MicroFacet(data) : CalculateSpecular_Phong(data);                    
-    float3 f = (1.0.xxx - data.m_F) * lightDiffuse + lightSpecular;
-    float3 color = f * eval.m_incomingRadiance * reservoir.m_weightOfImportantLight;
-                    
-    if (!IsFiniteFloat3(color))
-        color = 0;
-
-    color = ClampRadiance(color, 50.f);
+    float4 finalLighting = float4(0.f.xxx, 1.f);
     
-    float3 finalLighting = color;
+    if(g_appSettings.cb_doDirect == 1)
+    {
+        finalLighting = DoReSTIR(payload);
+    }
 
-// ---------------- INDIRECT ----------------
     if (g_appSettings.cb_doIndirect == 1)
     {
-        uint randSeed = (pixel.x + pixel.y * DispatchRaysDimensions().x) * (g_appSettings.cb_frameCount + 1);
+        finalLighting += DoIndirectLighting(payload);
+    } 
+   
+    float4 lastFramePixelColor  = g_noisyRenderOutput[pixel];
+    float4 lerpFactor           = g_appSettings.cb_accumCount / (g_appSettings.cb_accumCount + 1.0f);
+    float3 blended              = lerp(finalLighting.rgb, lastFramePixelColor.xyz, lerpFactor.xxx);
 
-        float3 throughput = float3(1.f, 1.f, 1.f);
-        float3 indirectAccum = 0.f.xxx;
-
-        RayDesc ray;
-        ray.Origin = OffsetRay(hitPosition, surfaceNormal);
-        ray.Direction = normalize(reflect(-payload.m_worldRayDirection, surfaceNormal));
-        ray.TMin = 0.0f;
-        ray.TMax = FP32Max;
-
-        for (int bounce = 0; bounce < 3; bounce++)
-        {
-            RayPayload bouncePayload;
-            bouncePayload.m_didHit = false;
-
-            TraceRay(g_tlas, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFFFFFFFF,
-                 RAY_PRIMARY, RAY_COUNT, RAY_PRIMARY,
-                 ray, bouncePayload);
-
-            if (!bouncePayload.m_didHit)
-            {
-                break;
-            }
-
-            float3 hitPos = bouncePayload.m_worldPosition;
-            float3 surfN = bouncePayload.m_surfaceNormal;
-
-            BrdfData bsdfData = GetBrdfData(bouncePayload, float3(0.f, 0.f, 1.f));
-
-            float3 brdfWeight;
-            float2 u = float2(
-            RollRandomFloatZeroToOneAndUpdateSeed(randSeed),
-            RollRandomFloatZeroToOneAndUpdateSeed(randSeed)
-        );
-
-            int brdfType;
-
-            if (bouncePayload.m_metalness == 1.f && bouncePayload.m_roughness == 0.f)
-            {
-                brdfType = BRDF_SPECULAR;
-            }
-            else
-            {
-                float prob = max(0.001f, GetBRDFProbability(bsdfData));
-
-                if (RollRandomFloatZeroToOneAndUpdateSeed(randSeed) < prob)
-                {
-                    brdfType = BRDF_SPECULAR;
-                    throughput /= prob;
-                }
-                else
-                {
-                    brdfType = BRDF_DIFFUSE;
-                    throughput /= (1.f - prob);
-                }
-            }
-
-            float3 nextDir;
-            if (!EvaluateIndirectBRDF(u, bsdfData, brdfType, nextDir, brdfWeight))
-            {
-                break;
-            }
-
-            throughput *= brdfWeight;
-
-            if (!IsFiniteFloat3(throughput))
-                break;
-
-            throughput = min(throughput, 1e4.xxx);
-
-        // ---- Direct lighting at bounce ----
-            float rand = RollRandomFloatZeroToOneAndUpdateSeed(randSeed);
-            float chosenWeight;
-            float totalWeight;
-
-            int lightIndex = SampleLight(rand, hitPos, bsdfData, chosenWeight, totalWeight);
-
-            if (lightIndex >= 0)
-            {
-                Light light = g_lightConsts.cb_allLights[lightIndex];
-                LightEval eval = EvalLightAtPoint(light, hitPos);
-
-                bool shadowed = IsPixelShadowedFromLight(hitPos, eval.m_pointToLightDirection, surfN, eval.m_maxDist);
-
-                if (!shadowed)
-                {
-                    BrdfData data = GetBrdfData(bouncePayload, eval.m_pointToLightDirection);
-
-                    float3 lightDiffuse = (g_debugConsts.cb_diffuseModel == 0) ? CalculateDiffuse_OrenNayar(data) : CalculateDiffuse_Lambert(data);
-                    float3 lightSpecular = (g_debugConsts.cb_specularModel == 0) ? CalculateSpecular_MicroFacet(data) : CalculateSpecular_Phong(data);
-
-                    float3 f = (1.0.xxx - data.m_F) * lightDiffuse + lightSpecular;
-                    float invPDF = totalWeight / max(chosenWeight, 1e-8);
-
-                    float3 bounceColor = throughput * f * eval.m_incomingRadiance * invPDF;
-
-                    if (!IsFiniteFloat3(bounceColor))
-                        bounceColor = 0;
-
-                    bounceColor = ClampRadiance(bounceColor, 50.f);
-
-                    indirectAccum += bounceColor;
-                }
-            }
-
-        // ---- Russian roulette ----
-            if (bounce > g_appSettings.cb_minBounces)
-            {
-                float rrProb = saturate(Luminance(throughput));
-                rrProb = clamp(rrProb, 0.05f, 0.95f);
-
-                if (rrProb < RollRandomFloatZeroToOneAndUpdateSeed(randSeed))
-                    break;
-
-                throughput /= rrProb;
-            }
-
-            ray.Origin = OffsetRay(hitPos, surfN);
-            ray.Direction = nextDir;
-        }
-
-        finalLighting += indirectAccum;
-    }
-    
-    float4 lastFramePixelColor = g_renderTarget[pixel];
-    float4 lerpFactor = g_appSettings.cb_accumCount / (g_appSettings.cb_accumCount + 1.0f);
-
-    float3 blended = lerp(finalLighting, lastFramePixelColor.xyz, lerpFactor.xxx);
-
-    g_renderTarget[pixel] = float4(blended, 1.0f);
-    g_noisyRenderTarget[pixel] = float4(blended, 1.0f);
-
-    g_prevReservoirBuffer[reservoirIndex] = reservoir; 
-    
-    //g_renderTarget[DispatchRaysIndex().xy].xyz      = color;
-    //g_noisyRenderTarget[DispatchRaysIndex().xy].xyz = color;
+    g_denoisedRenderOutput[pixel]   = float4(blended, 1.0f);
+    g_noisyRenderOutput[pixel]      = float4(blended, 1.0f);
 }
 
+//-------------------------------------------------------------------------------------------------------------------------------------
 [shader("closesthit")]
 void ClosestHitShader(inout RayPayload payload, in MyAttributes attribs)
 {
@@ -708,36 +515,21 @@ void ClosestHitShader(inout RayPayload payload, in MyAttributes attribs)
     Vertex_PCUTBN v1 = verts[i1];
     Vertex_PCUTBN v2 = verts[i2];
 
-    float3 bary = float3(
-        1.0f - attribs.barycentrics.x - attribs.barycentrics.y,
-        attribs.barycentrics.x,
-        attribs.barycentrics.y
-    );
+    float3 bary = float3(1.0f - attribs.barycentrics.x - attribs.barycentrics.y, attribs.barycentrics.x, attribs.barycentrics.y);
 
-    float2 uv = v0.v_uvCoords * bary.x +
-                v1.v_uvCoords * bary.y +
-                v2.v_uvCoords * bary.z;
+    float2 uv = v0.v_uvCoords * bary.x + v1.v_uvCoords * bary.y + v2.v_uvCoords * bary.z;
 
     uv.y = 1.f - uv.y;
 
-    float3 normal =
-        v0.v_normal * bary.x +
-        v1.v_normal * bary.y +
-        v2.v_normal * bary.z;
+    float3 normal = v0.v_normal * bary.x + v1.v_normal * bary.y + v2.v_normal * bary.z;
 
-    float3 tangent =
-        v0.v_tangent * bary.x +
-        v1.v_tangent * bary.y +
-        v2.v_tangent * bary.z;
+    float3 tangent = v0.v_tangent * bary.x + v1.v_tangent * bary.y + v2.v_tangent * bary.z;
 
-    float3 bitangent =
-        v0.v_bitangent * bary.x +
-        v1.v_bitangent * bary.y +
-        v2.v_bitangent * bary.z;
+    float3 bitangent = v0.v_bitangent * bary.x + v1.v_bitangent * bary.y + v2.v_bitangent * bary.z;
 
-    normal = SafeNormalize(normal);
-    tangent = SafeNormalize(tangent);
-    bitangent = SafeNormalize(bitangent);
+    normal      = SafeNormalize(normal);
+    tangent     = SafeNormalize(tangent);
+    bitangent   = SafeNormalize(bitangent);
 
     float3 pixelNormal = normal;
 
@@ -745,17 +537,17 @@ void ClosestHitShader(inout RayPayload payload, in MyAttributes attribs)
     if (meshInfo.m_materialInfo.m_normalIndex != -1)
     {
         Texture2D normalTex = g_textures[meshInfo.m_materialInfo.m_normalIndex];
-        float3 normalTS = DecodeRGBtoXYZ(SampleTexture(normalTex, uv, meshInfo.m_materialInfo.m_normalSamplerIndex).rgb);
+        float3 normalTS     = DecodeRGBtoXYZ(SampleTexture(normalTex, uv, meshInfo.m_materialInfo.m_normalSamplerIndex).rgb);
 
-        float3x3 TBN = float3x3(tangent, bitangent, normal);
-        pixelNormal = normalize(mul(normalTS, TBN));
+        float3x3 TBN    = float3x3(tangent, bitangent, normal);
+        pixelNormal     = normalize(mul(normalTS, TBN));
     }
 
     float3 albedo = 1.f.xxx;
     if (meshInfo.m_materialInfo.m_albedoIndex != -1)
     {
         Texture2D albedoTex = g_textures[meshInfo.m_materialInfo.m_albedoIndex];
-        albedo = SampleTexture(albedoTex, uv, meshInfo.m_materialInfo.m_albedoSamplerIndex).rgb;
+        albedo              = SampleTexture(albedoTex, uv, meshInfo.m_materialInfo.m_albedoSamplerIndex).rgb;
     }
 
     float roughness = 0.5f;
@@ -770,15 +562,15 @@ void ClosestHitShader(inout RayPayload payload, in MyAttributes attribs)
         metalness = saturate(rmSample.b);
     }
 
-    payload.m_worldPosition = hitLocation;
+    payload.m_worldPosition     = hitLocation;
     payload.m_worldRayDirection = WorldRayDirection();
 
-    payload.m_surfaceNormal = normal;
-    payload.m_pixelNormal = pixelNormal;
-    payload.m_worldTangent = tangent;
-    payload.m_worldBitangent = bitangent;
+    payload.m_surfaceNormal     = normal;
+    payload.m_pixelNormal       = pixelNormal;
+    payload.m_worldTangent      = tangent;
+    payload.m_worldBitangent    = bitangent;
 
-    payload.m_albedo = albedo;
+    payload.m_albedo    = albedo;
     payload.m_roughness = roughness;
     payload.m_metalness = metalness;
 } 

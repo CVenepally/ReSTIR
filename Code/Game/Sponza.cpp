@@ -15,37 +15,15 @@ Sponza::Sponza()
 
 	m_sunLight = Light::CreateDirectionalLight(direction, 3.7f, Rgba8(255, 255, 255, 255));
 
-// 	float innerRadius = 0.25f;
-// 	float outerRadius = 1.f;
-// 
-// 	Light pointTest_0 = Light::CreatePointLight(Vec3(0.f, 0.f, 4.f), innerRadius, outerRadius,	0.4f);
-// 	Light pointTest_1 = Light::CreatePointLight(Vec3(1.f, 1.f, 4.f), innerRadius, outerRadius,	0.4f, Rgba8::RED);
-// 	Light pointTest_2 = Light::CreatePointLight(Vec3(-1.f, -1.f, 4.f), innerRadius, outerRadius,0.4f, Rgba8::GREEN);
-// 	Light pointTest_3 = Light::CreatePointLight(Vec3(-2.f, 3.f, 4.f), innerRadius, outerRadius, 0.4f, Rgba8::CYAN);
-// 	Light pointTest_4 = Light::CreatePointLight(Vec3(4.f, 0.f, 6.f), innerRadius, outerRadius,	0.4f, Rgba8::ORANGE);
-// 
-//  	m_lights.push_back(pointTest_0);
-// 	m_lights.push_back(pointTest_1);
-// 	m_lights.push_back(pointTest_2);
-// 	m_lights.push_back(pointTest_3);
-// 	m_lights.push_back(pointTest_4);
-
-//	m_allLights.push_back(m_sunLight);
 	InitLights();
 
-// 	m_lightsBuffer = g_renderer->CreateStructuredBuffer(static_cast<int>(m_lights.size()), sizeof(Light), m_lights.data());
+ 	m_lightsBuffer = g_renderer->CreateStructuredBuffer(static_cast<int>(m_allLights.size()), sizeof(Light), m_allLights.data());
 	m_debugInfo.m_diffuseModel = 1;
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Sponza::~Sponza()
 {
-// 	if(m_lightsBuffer)
-// 	{
-// 		delete m_lightsBuffer;
-// 		m_lightsBuffer = nullptr;
-// 	}
-
 	m_staticGeoVBOs.clear();
 	m_staticGeoIBOs.clear();
 }
@@ -71,7 +49,108 @@ void Sponza::InitSceneGeometry()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void Sponza::Update()
 {
-	SetDebugValues();
+	if(g_inputSystem->WasKeyJustPressed('1'))
+	{
+		m_debugInfo.m_debugView = 1;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 11;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+	}
+
+	if(g_inputSystem->WasKeyJustPressed('2'))
+	{
+		m_debugInfo.m_debugView = 2;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 12;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
+	if(g_inputSystem->WasKeyJustPressed('3'))
+	{
+		m_debugInfo.m_debugView = 3;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 13;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
+	if(g_inputSystem->WasKeyJustPressed('4'))
+	{
+		m_debugInfo.m_debugView = 4;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 14;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
+	if(g_inputSystem->WasKeyJustPressed('5'))
+	{
+		m_debugInfo.m_debugView = 5;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 15;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
+	if(g_inputSystem->WasKeyJustPressed('6'))
+	{
+		m_debugInfo.m_debugView = 6;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 16;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
+	if(g_inputSystem->WasKeyJustPressed('7'))
+	{
+		m_debugInfo.m_debugView = 7;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 17;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
+	if(g_inputSystem->WasKeyJustPressed('8'))
+	{
+		m_debugInfo.m_debugView = 8;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 18;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
+	if(g_inputSystem->WasKeyJustPressed('9'))
+	{
+		m_debugInfo.m_debugView = 9;
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 19;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
+
+	if(g_inputSystem->WasKeyJustPressed('0'))
+	{
+		m_debugInfo.m_debugView = 0;
+
+		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
+		{
+			m_debugInfo.m_debugView = 10;
+		}
+		g_renderer->ResetFrameAccumulationCounter();
+
+	}
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -79,18 +158,7 @@ void Sponza::Render()
 {
 	g_renderer->SetDebugConstants(m_debugInfo);
 
-	if(m_renderLights)
-	{
-		g_renderer->SetLightConstants(m_sunLight, m_allLights, m_ambientIntensity, RootSignatureType::RAY_TRACED);	
-	}
-	else
-	{
-		std::vector<Light> sun;
-		sun.push_back(m_allLights[0]);
-		g_renderer->SetLightConstants(m_sunLight, sun, m_ambientIntensity, RootSignatureType::RAY_TRACED);
-
-	}
-	g_renderer->SetSceneConstants(m_meshInfoBuffer->GetBindlessIndex(), static_cast<unsigned int>(m_staticGeoVBOs.size()));
+	g_renderer->SetSceneConstants(m_meshInfoBuffer->GetBindlessIndex(), static_cast<unsigned int>(m_staticGeoVBOs.size()), m_maxLightsToRender, m_lightsBuffer->GetBindlessIndex());
 	g_renderer->DispatchRays(m_tlas);
 }
 
@@ -264,64 +332,40 @@ void Sponza::LoadGLTFNode(tinygltf::Node const& currentNode, tinygltf::Model& mo
 void Sponza::InitLights()
 {
 	Rgba8 lightColors[6] = {Rgba8::WHITE, Rgba8(240, 40, 0), Rgba8(50, 200, 90), Rgba8(0, 170, 255), Rgba8(255, 145, 0), Rgba8(255, 221, 3)};
-
-	float minX = -10.f;
-	float maxX = 10.f;
-
-	float minY = -4.f;
-	float maxY = 4.f;
-
-	float z1 = 1.f;
-	float z2 = 5.f;
-	float z3 = 10.f;
-	float z4 = 15.f;
-
-	const int lightsAlongXOneLine = 11;
-	const int lightsAlongYOneLine = 5;
-	const int totalLightsPerZ = 55;
-
-	m_allLights.reserve(totalLightsPerZ * 4);
-
-	float startX = minX;
-	float startY = minY;
-
 	IntRange indexRange = IntRange(0, 5);
 	FloatRange intensityRange = FloatRange(m_minPointLightIntensity, m_maxPointLightIntensity);
 
-	for(int i = 0; i < lightsAlongXOneLine; i++)
+	FloatRange xRange = FloatRange(-10.f, 10.f);
+	FloatRange yRange = FloatRange(-4.f, 4.f);
+	FloatRange zRange = FloatRange(1.f, 15.f);
+	for(int i = 0; i < m_maxLightsInScene; i++)
 	{
-		startY = minY;
+		Vec3 lightPos;
+		lightPos.x = xRange.GetRandomFloat();
+		lightPos.z = zRange.GetRandomFloat();
 
-		for(int j = 0; j < lightsAlongYOneLine; j++)
+		if(lightPos.z >= 2.7f && lightPos.z <= 3.f)
 		{
-			Vec3 lightZ1Pos = Vec3(startX, startY, z1);
-			Vec3 lightZ2Pos = Vec3(startX, startY, z2);
-			Vec3 lightZ3Pos = Vec3(startX, startY, z3);
-			Vec3 lightZ4Pos = Vec3(startX, startY, z4);
-
-			int c1Index = indexRange.GetRandomInt();
-			int c2Index = indexRange.GetRandomInt();
-			int c3Index = indexRange.GetRandomInt();
-			int c4Index = indexRange.GetRandomInt();
-
-			float intensity1 = intensityRange.GetRandomFloat();
-			float intensity2 = intensityRange.GetRandomFloat();
-			float intensity3 = intensityRange.GetRandomFloat();
-			float intensity4 = intensityRange.GetRandomFloat();
-
-			Light lightZ1 = Light::CreatePointLight(lightZ1Pos, 1.f, 1.f, intensity1, lightColors[c1Index]);
-			Light lightZ2 = Light::CreatePointLight(lightZ2Pos, 1.f, 1.f, intensity2, lightColors[c2Index]);
-			Light lightZ3 = Light::CreatePointLight(lightZ3Pos, 1.f, 1.f, intensity3, lightColors[c3Index]);
-			Light lightZ4 = Light::CreatePointLight(lightZ4Pos, 1.f, 1.f, intensity4, lightColors[c4Index]);
-
-			m_allLights.push_back(lightZ1);
-			m_allLights.push_back(lightZ2);
-			m_allLights.push_back(lightZ3);
-			m_allLights.push_back(lightZ4);
-
-			startY = GetClamped(startY + 2, minY, maxY);
+			lightPos.z = (FloatRange(0.f, 1.f).GetRandomFloat() < 0.5f) ? 2.1f : 2.3f;
 		}
-		startX = GetClamped(startX + 2, minX, maxX);
+		else if(lightPos.z >= 6.7f && lightPos.z <= 7.f)
+		{
+			lightPos.z = (FloatRange(0.f, 1.f).GetRandomFloat() < 0.5f) ? 6.0f : 6.2f;
+		}
+
+		if(lightPos.z > 7.f)
+		{
+			lightPos.y = FloatRange(-2.2f, 2.9f).GetRandomFloat();
+		}
+		else
+		{
+			lightPos.y = yRange.GetRandomFloat();
+		}
+
+		float intensity = intensityRange.GetRandomFloat();
+		int colorIndex = indexRange.GetRandomInt();
+		Light light = Light::CreatePointLight(lightPos, 1.f, 1.f, intensity, lightColors[colorIndex]);
+		m_allLights.push_back(light);
 	}
 }
 
@@ -405,18 +449,6 @@ void Sponza::SetDebugValues()
 			}
 			
 			ImGui::PushItemWidth(80.0f);
-
-			//ImGui::Text("Point Light Common Intensity");
-			//ImGui::SameLine();
-			//if(ImGui::SliderFloat("##PCI", &m_pointLightIntensity, 0.f, 10.f))
-			//{
-			//	for(int index = 1; index < m_allLights.size(); index++)
-			//	{
-			//		m_allLights[index].SetIntensity(m_pointLightIntensity);
-			//	}
-
-			//	g_renderer->ResetFrameAccumulationCounter();
-			//}
 
 			ImGui::PopItemWidth();
 
@@ -526,134 +558,32 @@ void Sponza::SetDebugValues()
 
 //	ImGui::TextWrapped("Controls:\nWSAD - Move\nQ/E - Up/Down\nSpacebar - Toggle Mouse Pointer");
 
-	if(g_inputSystem->WasKeyJustPressed('1'))
-	{
-		m_debugInfo.m_debugView = 1;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 11;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-	}
 
-	if(g_inputSystem->WasKeyJustPressed('2'))
-	{
-		m_debugInfo.m_debugView = 2;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 12;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
+	//static const char* debugViewStrings[] =
+	//{
+	//	"Default Output View",				// 0
+	//	"Position GBuffer View",			// 1
+	//	"Albedo GBuffer View",				// 2
+	//	"Vertex Color GBuffer View",		// 3
+	//	"Normals GBuffer View",				// 4
+	//	"Velocity GBuffer View",			// 5
+	//	"Surface Normal GBuffer View",		// 6
+	//	"Surface Tangent GBuffer View",		// 7
+	//	"Surface Bitangent GBuffer View",	// 8
+	//	"Roughness GBuffer View",			// 9
+	//	"Metalness GBuffer View",			// 10
+	//	"Reservoir Debug View",				// 11
+	//	"Reservoir Debug: Pixels with 0 lights sampled",						// 12
+	//	"Undefined",						// 13
+	//	"Undefined",						// 14
+	//	"Undefined",						// 15
+	//	"Undefined",						// 16
+	//	"Undefined",						// 17
+	//	"Undefined",						// 18
+	//	"Undefined"							// 19
+	//};
 
-	}
-	if(g_inputSystem->WasKeyJustPressed('3'))
-	{
-		m_debugInfo.m_debugView = 3;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 13;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-
-	}
-	if(g_inputSystem->WasKeyJustPressed('4'))
-	{
-		m_debugInfo.m_debugView = 4;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 14;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-
-	}
-	if(g_inputSystem->WasKeyJustPressed('5'))
-	{
-		m_debugInfo.m_debugView = 5;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 15;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-
-	}
-	if(g_inputSystem->WasKeyJustPressed('6'))
-	{
-		m_debugInfo.m_debugView = 6;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 16;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-
-	}
-	if(g_inputSystem->WasKeyJustPressed('7'))
-	{
-		m_debugInfo.m_debugView = 7;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 17;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-
-	}
-	if(g_inputSystem->WasKeyJustPressed('8'))
-	{
-		m_debugInfo.m_debugView = 8;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 18;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-
-	}
-	if(g_inputSystem->WasKeyJustPressed('9'))
-	{
-		m_debugInfo.m_debugView = 9;
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 19;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-
-	}
-
-	if(g_inputSystem->WasKeyJustPressed('0'))
-	{
-		m_debugInfo.m_debugView = 0;
-
-		if(g_inputSystem->IsKeyDown(KEYCODE_LSHIFT))
-		{
-			m_debugInfo.m_debugView = 10;
-		}
-		g_renderer->ResetFrameAccumulationCounter();
-
-	}
-
-	static const char* debugViewStrings[] =
-	{
-		"Default Output View",				// 0
-		"Position GBuffer View",			// 1
-		"Albedo GBuffer View",				// 2
-		"Vertex Color GBuffer View",		// 3
-		"Normals GBuffer View",				// 4
-		"Velocity GBuffer View",			// 5
-		"Surface Normal GBuffer View",		// 6
-		"Surface Tangent GBuffer View",		// 7
-		"Surface Bitangent GBuffer View",	// 8
-		"Roughness GBuffer View",			// 9
-		"Metalness GBuffer View",			// 10
-		"Reservoir Debug View",				// 11
-		"Reservoir Debug: Pixels with 0 lights sampled",						// 12
-		"Undefined",						// 13
-		"Undefined",						// 14
-		"Undefined",						// 15
-		"Undefined",						// 16
-		"Undefined",						// 17
-		"Undefined",						// 18
-		"Undefined"							// 19
-	};
-
-	ImGui::Text(Stringf("Current Debug View: %s", debugViewStrings[m_debugInfo.m_debugView]).c_str());
-	ImGui::End();
+	//ImGui::Text(Stringf("Current Debug View: %s", debugViewStrings[m_debugInfo.m_debugView]).c_str());
+	//ImGui::End();
 
 }

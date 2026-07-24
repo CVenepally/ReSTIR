@@ -3,7 +3,7 @@
 //  GLOBAL CONSTANTS
 //-------------------------------------------------------------------------------------------------------------------------------------
 static const float FP32Max = 3.402823466e+38f;
-
+static const float MAX_RADIANCE = 30.f;
 //-------------------------------------------------------------------------------------------------------------------------------------
 //  DATA STRUCTURES
 //-------------------------------------------------------------------------------------------------------------------------------------
@@ -72,7 +72,7 @@ struct AppSettings
     uint    cb_accumCount;
     
     int     cb_maxSamples;
-    uint    cb_minBounces;
+    uint    cb_maxBounces;
     uint    cb_doDirect;
     uint    cb_doIndirect;
     
@@ -116,8 +116,8 @@ struct SceneConstants
 {
     uint cb_sceneMeshInfoBufferIndex;
     uint cb_numStaticGeometry;
-
-    float2 padding0;
+    uint cb_numLights;
+    uint cb_lightBufferIndex;
 }; // b3
 
 //-------------------------------------------------------------------------------------------------------------------------------------

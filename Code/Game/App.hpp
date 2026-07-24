@@ -2,10 +2,11 @@
 
 #include "Engine/Math/Vec2.hpp"
 #include "Engine/Renderer/Camera.hpp"
+#include "Engine/Core/EngineCommon.hpp"
 
 //------------------------------------------------------------------------------------------------------------------
-class NamedStrings;
-typedef NamedStrings EventArgs;
+//class NamedStrings;
+//typedef NamedStrings EventArgs;
 class VertexBuffer;
 class Game;
 //------------------------------------------------------------------------------------------------------------------

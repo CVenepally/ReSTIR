@@ -34,15 +34,16 @@ LightEval EvalLightAtPoint(Light light, float3 hitPosition)
         float squaredDistance = dot(pointToLight, pointToLight);
         float distance = sqrt(max(squaredDistance, 1e-8));
         
-        evalResult.m_pointToLightDirection = SafeNormalize(pointToLight) / distance;
+        evalResult.m_pointToLightDirection = SafeNormalize(pointToLight);
         
-    //    float minDist = 1e-6;
+        float minDist = 1e-6;
         
-        float minDist = (0.00001f * 0.00001f);
+     //   float minDist = (0.01f * 0.01f);
         
         float sqDistanceInverse = 1 / max(squaredDistance, minDist);
+    //    float sqDistanceInverse = 1 / max(distance * distance * distance, minDist);
         evalResult.m_incomingRadiance = light.l_color.rgb * light.l_color.a * sqDistanceInverse;
-        evalResult.m_incomingRadiance = ClampRadiance(evalResult.m_incomingRadiance, 50.f);
+        evalResult.m_incomingRadiance = ClampRadiance(evalResult.m_incomingRadiance, MAX_RADIANCE);
         evalResult.m_maxDist = distance;
     }
     

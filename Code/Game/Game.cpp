@@ -4,7 +4,7 @@
 #include "Game/PBRTests.hpp"
 #include "Game/Sponza.hpp"
 
-#include "Engine/Core/NamedStrings.hpp"
+#include "Engine/Core/NamedProperties.hpp"
 
 #include "ThirdParty/imgui/imgui.h"
 #include "ThirdParty/imgui/implot.h"
@@ -35,10 +35,19 @@ void Game::Startup()
 
 	m_enableAccum	= g_gameConfigBlackboard.GetValue("enableFrameAccumulation", true);
 	m_enableJitter	= g_gameConfigBlackboard.GetValue("enableJitter", true);
-	m_minBounces	= g_gameConfigBlackboard.GetValue("minBounces", 0);
-// 	m_maxBounces	= g_gameConfigBlackboard.GetValue("maxBounces", 0);
+	m_maxBounces	= g_gameConfigBlackboard.GetValue("maxBounces", 10);
 	m_spp			= g_gameConfigBlackboard.GetValue("spp", 32);
 	m_enableIndirect = g_gameConfigBlackboard.GetValue("enableIndirect", true);
+
+	g_renderer->SetNumDenoisePasses(m_denoisePasses);
+	g_renderer->SetDenoiseRadius(m_denoiseRadius);
+	g_renderer->SetDenoiseSigmaSpatial(m_sigmaSpatial);
+	g_renderer->SetDenoiseSigmaPosition(m_sigmaPosition);
+	g_renderer->SetDenoiseNormalPower(m_normalPower);
+
+	g_renderer->SetSpatialReusePasses(m_spatialReusePasses);
+	g_renderer->SetSpatialReusePixelRadius(m_spatialReuseRadius);
+	g_renderer->SetSpatialReuseMaxSamplesPerIteration(m_spatialReuseSamples);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -51,7 +60,10 @@ void Game::Shutdown()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void Game::Update()
 {
-	UpdateMainDebugWindow();
+	if(m_showDebugWindow)
+	{
+		UpdateMainDebugWindow();
+	}
 
 	KeyboardControls();
 
@@ -150,6 +162,11 @@ void Game::KeyboardControls()
 	{
 		m_camera.m_position -= upVector * moveSpeed * m_gameClock->GetDeltaSeconds();
 	}	
+
+	if(g_inputSystem->WasKeyJustPressed('G'))
+	{
+		m_showDebugWindow = !m_showDebugWindow;
+	}	
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -175,124 +192,142 @@ void Game::InitializeCameras()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void Game::UpdateMainDebugWindow()
 {
-	ImGui::Begin("App Settings");
-	
-// 	const char* sceneNames[] = {"TEST SCENE", "PBR", "SPONZA"};
-// 
-// 	int prevIndex = m_currentSceneIndex;
-// 
-// 	ImGui::Combo("Scenes", &m_currentSceneIndex, sceneNames, IM_ARRAYSIZE(sceneNames));
-// 
-// 	if(prevIndex != m_currentSceneIndex)
-// 	{
-// 		SwitchScene(static_cast<Scenes>(m_currentSceneIndex));
-// 	}
+	ImGui::Begin("Debug Info");
 
-	// Frame Rate
+	if(ImGui::CollapsingHeader("General Info"))
 	{
-		float deltaSeconds = m_gameClock->GetDeltaSeconds() * 1000.f;
-		m_frameTimes[m_valuesOffset] = deltaSeconds;
-		m_valuesOffset = (m_valuesOffset + 1) % 120;
-		std::string frameTime = Stringf("Frame Time: %0.2f ms", deltaSeconds);
-		ImGui::Text(frameTime.c_str());
-	//	ImGui::PlotLines("Frame Time", m_frameTimes, IM_ARRAYSIZE(m_frameTimes), m_valuesOffset, nullptr, 0.0f, 40.0f, ImVec2(0, 80));
-		if(ImPlot::BeginPlot("Frame Time", ImVec2(-1, 150)))
-		{
-			ImPlot::SetupAxes(nullptr, "ms", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
-			ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 40.0, ImGuiCond_Always);
+		std::string pos = Stringf("Current Position: (%0.2f, %0.2f, %0.2f)", m_camera.m_position.x, m_camera.m_position.y, m_camera.m_position.z);
+		ImGui::Text(pos.c_str());
 
-			// Reference lines
-			float y_lines[] = {16.67f, 33.33f};
-
-			ImPlot::SetNextLineStyle(ImVec4(0.3f, 0.9f, 0.4f, 0.5f), 1.0f);
-			ImPlot::PlotInfLines("##16ms", y_lines, 1);
-
-			ImPlot::SetNextLineStyle(ImVec4(1.0f, 0.8f, 0.3f, 0.5f), 1.0f);
-			ImPlot::PlotInfLines("##33ms", y_lines + 1, 1);			// Build ordered data from ring buffer
-
-			static float ordered[120];
-			for(int i = 0; i < IM_ARRAYSIZE(m_frameTimes); ++i)
-			{
-				int idx = (m_valuesOffset + i) % IM_ARRAYSIZE(m_frameTimes);
-				ordered[i] = m_frameTimes[idx];
-			}
-
-			// === Fill under curve ===
-			ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
-			ImPlot::SetNextFillStyle(ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
-			ImPlot::PlotShaded("Fill", ordered, IM_ARRAYSIZE(ordered), 0.0f);
-			ImPlot::PopStyleVar();
-
-			// === Colored segments ===
-			for(int i = 0; i < IM_ARRAYSIZE(ordered) - 1; ++i)
-			{
-				float avg = 0.5f * (ordered[i] + ordered[i + 1]);
-
-				ImVec4 col;
-				if(avg <= 16.67f)      col = ImVec4(0.3f, 0.9f, 0.4f, 1.0f); // green
-				else if(avg <= 33.33f) col = ImVec4(1.0f, 0.8f, 0.3f, 1.0f); // yellow
-				else                    col = ImVec4(1.0f, 0.3f, 0.3f, 1.0f); // red
-
-				ImPlot::SetNextLineStyle(col, 3.0f); // thicker line
-
-				float xs[2] = {(float)i, (float)(i + 1)};
-				float ys[2] = {ordered[i], ordered[i + 1]};
-
-				ImPlot::PlotLine("##seg", xs, ys, 2);
-			}
-
-			ImPlot::EndPlot();
-		}
+		float fps						= 1.f / m_gameClock->GetDeltaSeconds();
+		float deltaSeconds				= m_gameClock->GetDeltaSeconds() * 1000.f;
+		std::string fpsText		= Stringf("FPS: %0.2f (%0.2fms)", fps, deltaSeconds);
+		ImGui::Text(fpsText.c_str());
 	}
 
-	std::string pos = Stringf("Position: (%0.2f, %0.2f, %0.2f)", m_camera.m_position.x, m_camera.m_position.y, m_camera.m_position.z);
-	ImGui::Text(pos.c_str());
+	if(ImGui::CollapsingHeader("Lighting"))
+	{		
+		ImGui::Text("Max Lights To Render");
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(120.f);
+		Sponza* scene = dynamic_cast<Sponza*>(m_currentScene);
+		if(ImGui::SliderInt("##lights", &scene->m_maxLightsToRender, 1, scene->m_maxLightsInScene))
+		{
+			g_renderer->ResetFrameAccumulationCounter();
+		}
 
-	ImGui::Checkbox("Enable Sub-Pixel Jitter", &m_enableJitter);
-	g_renderer->EnableJitter(m_enableJitter);
+		ImGui::Indent();
+		ImGui::Checkbox("Enable Direct Lighting", &m_enableDirect);
+		g_renderer->ToggleDirectLighting(m_enableDirect);
 
-	ImGui::Checkbox("Enable Frame Accumulation", &m_enableAccum);
-	g_renderer->EnableFrameAccumulation(m_enableAccum);
-// 
-// 	ImGui::SliderInt("Max Bounces", &m_maxBounces, 0, 31);
-// 	g_renderer->SetMaxLightRayBounces(m_maxBounces);
+		if(m_enableDirect)
+		{
+			if(ImGui::TreeNode("Direct Lighting Settings"))
+			{
+				const char* directLightingModes[] = {"ReSTIR"};
+				static int directLightingMode = 0;
+				ImGui::Text("Sampling Technique");
+				ImGui::SameLine();
+				ImGui::SetNextItemWidth(120.f);
+				if(ImGui::BeginCombo("##sampling", directLightingModes[directLightingMode]))
+				{
+					for(int i = 0; i < IM_ARRAYSIZE(directLightingModes); ++i)
+					{
+						bool isSelected = (directLightingMode == i);
 
-	ImGui::SliderInt("Min Bounces", &m_minBounces, 0, 31);
-	g_renderer->SetMinLightRayBounces(m_minBounces);
+						if(ImGui::Selectable(directLightingModes[i], isSelected))
+							directLightingMode = i;
 
-	ImGui::Checkbox("Enable Direct Lighting", &m_enableDirect);
-	g_renderer->ToggleDirectLighting(m_enableDirect);
+						if(isSelected)
+							ImGui::SetItemDefaultFocus();
+					}
+					ImGui::EndCombo();
+				}
 
-	ImGui::Checkbox("Enable Indirect Lighting", &m_enableIndirect);
-	g_renderer->ToggleIndirectLighting(m_enableIndirect);
+				if(directLightingMode == 0) // ReSTIR
+				{
+					ImGui::Indent();
 
-	ImGui::Checkbox("Enable Temporal Reuse", &m_temporalReuse);
-	g_renderer->ToggleTemporalReuse(m_temporalReuse);
+					ImGui::Text("Reservoir Sampling Samples Per Pixel");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(120.f);
+					ImGui::SliderInt("##spp", &m_spp, 1, 64);
+					g_renderer->SetSamplesPerPixel(m_spp);
 
-	ImGui::Checkbox("Enable Spatial Reuse", &m_spatialReuse);
-	g_renderer->ToggleSpatialReuse(m_spatialReuse);
+					ImGui::Checkbox("Enable Temporal Reuse", &m_temporalReuse);
+					g_renderer->ToggleTemporalReuse(m_temporalReuse);
 
-	ImGui::Checkbox("Enable Denoiser", &m_enableDenoiser);
-	g_renderer->ToggleDenoiser(m_enableDenoiser);
+					ImGui::Checkbox("Enable Spatial Reuse", &m_spatialReuse);
+					g_renderer->ToggleSpatialReuse(m_spatialReuse);
+					
+					ImGui::Text("Spatial Reuse Passes");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(120.f);
+					ImGui::SliderInt("##spr", &m_spatialReusePasses, 1, 6);
+					g_renderer->SetSpatialReusePasses(m_spatialReusePasses);
 
-	ImGui::SliderInt("Num Denoise Passes", &m_denoisePasses, 1, 3);
-	g_renderer->SetNumDenoisePasses(m_denoisePasses);
+					ImGui::Text("Spatial Reuse Radius");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(120.f);
+					ImGui::SliderInt("##srpr", &m_spatialReuseRadius, 3, 64);
+					g_renderer->SetSpatialReusePixelRadius(m_spatialReuseRadius);
+					
+					ImGui::Text("Spatial Reuse Samples");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(120.f);
+					ImGui::SliderInt("##srs", &m_spatialReuseSamples, 3, 10);
+					g_renderer->SetSpatialReuseMaxSamplesPerIteration(m_spatialReuseSamples);
 
-	ImGui::SliderInt("Denoise Radius", &m_denoiseRadius, 1, 3);
-	g_renderer->SetDenoiseRadius(m_denoiseRadius);
+					ImGui::Unindent();
+				}
+				ImGui::TreePop();
+			}
+		}
 
-	ImGui::SliderFloat("Denoise Sigma Spatial", &m_sigmaSpatial, 1.f, 10.f);
-	g_renderer->SetDenoiseSigmaSpatial(m_sigmaSpatial);
+		ImGui::Checkbox("Enable Indirect Lighting", &m_enableIndirect);
+		g_renderer->ToggleIndirectLighting(m_enableIndirect);
+		if(m_enableIndirect)
+		{
+			if(ImGui::TreeNode("Indirect Lighting Settings"))
+			{
+				ImGui::Text("Max Bounces");
+				ImGui::SameLine();
+				ImGui::SliderInt("##bounces", &m_maxBounces, 0, 31);
+				g_renderer->SetMaxLightRayBounces(m_maxBounces);
+				ImGui::TreePop();
+			}			
+		}
+		ImGui::Unindent();
+	}
 
-	ImGui::SliderInt("Samples Per Pixel", &m_spp, 1, 64);
-	g_renderer->SetSamplesPerPixel(m_spp);
+	if(ImGui::CollapsingHeader("Denoiser Settings"))
+	{
+		ImGui::Checkbox("Enable Frame Accumulation", &m_enableAccum);
+		g_renderer->EnableFrameAccumulation(m_enableAccum);
 
+		ImGui::Checkbox("Enable Denoiser", &m_enableDenoiser);
+		g_renderer->ToggleDenoiser(m_enableDenoiser);
 
-	ImGui::SliderInt("Max Frames To Accumulate", &m_maxFramesToAccumulate, -1, 64);
-	g_renderer->SetMaxFramesToAccumulate(m_maxFramesToAccumulate);
+		ImGui::SliderInt("Num Denoise Passes", &m_denoisePasses, 1, 3);
+		g_renderer->SetNumDenoisePasses(m_denoisePasses);
 
-	ImGui::Text(Stringf("Accumulated Frame Count: %d", g_renderer->GetAccumulatedFrameCount()).c_str());
+		ImGui::SliderInt("Denoise Radius", &m_denoiseRadius, 1, 3);
+		g_renderer->SetDenoiseRadius(m_denoiseRadius);
 
+		ImGui::SliderFloat("Denoise Sigma Spatial", &m_sigmaSpatial, 0.f, 10.f);
+		g_renderer->SetDenoiseSigmaSpatial(m_sigmaSpatial);
+
+		ImGui::SliderFloat("Denoise Sigma Position", &m_sigmaPosition, 0.f, 10.f);
+		g_renderer->SetDenoiseSigmaPosition(m_sigmaPosition);
+		
+		ImGui::SliderFloat("Denoise Normal Power", &m_normalPower, 0.f, 64.f);
+		g_renderer->SetDenoiseNormalPower(m_normalPower);
+
+		ImGui::SliderInt("Max Frames To Accumulate", &m_maxFramesToAccumulate, -1, 64);
+		g_renderer->SetMaxFramesToAccumulate(m_maxFramesToAccumulate);
+
+		ImGui::Text(Stringf("Accumulated Frame Count: %d", g_renderer->GetAccumulatedFrameCount()).c_str());
+	}
 	ImGui::End();
 }
 
